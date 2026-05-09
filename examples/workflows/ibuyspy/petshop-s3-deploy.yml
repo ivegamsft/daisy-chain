@@ -1,0 +1,103 @@
+name: PetShop S3 ? VM Rehost Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Target environment
+        required: true
+        type: choice
+        options: [dev]
+        default: dev
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  APP_NAME: petshop
+  RESOURCE_GROUP: rg-petshop-${{ github.event.inputs.environment }}
+  VM_NAME: vm-petshop-${{ github.event.inputs.environment }}
+  SPOKE_REPO: IBuySpy-Dev/app-petshop-migration
+
+jobs:
+  validate-names:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate CAF naming
+        run: |
+          RG="${{ env.RESOURCE_GROUP }}"
+          VM="${{ env.VM_NAME }}"
+          echo "Validating CAF names..."
+          [[ "$RG" =~ ^rg-[a-z0-9]+-[a-z]+$ ]] || { echo "::error::RG '$RG' does not follow rg-<workload>-<env> CAF pattern"; exit 1; }
+          [[ "$VM" =~ ^vm-[a-z0-9]+-[a-z]+$ ]] || { echo "::error::VM '$VM' does not follow vm-<workload>-<env> CAF pattern"; exit 1; }
+          echo "? CAF names valid: $RG / $VM"
+
+  provision-infrastructure:
+    needs: validate-names
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Azure Login (OIDC)
+        uses: azure/login@v3
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Ensure Resource Group exists
+        run: |
+          az group create \
+            --name ${{ env.RESOURCE_GROUP }} \
+            --location eastus \
+            --tags app=petshop environment=${{ github.event.inputs.environment }} factory=migration
+
+  deploy-app:
+    needs: provision-infrastructure
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Azure Login (OIDC)
+        uses: azure/login@v3
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Trigger spoke deployment
+        env:
+          GH_TOKEN: ${{ secrets.SPOKE_PAT }}
+        run: |
+          gh workflow run deploy-s3.yml \
+            --repo ${{ env.SPOKE_REPO }} \
+            --field environment=${{ github.event.inputs.environment }} \
+            --field resource_group=${{ env.RESOURCE_GROUP }} \
+            --field vm_name=${{ env.VM_NAME }}
+
+          # PetShop needs extra startup time ? 21 projects, MSMQ service init
+          sleep 60
+          RUN_ID=$(gh run list --repo ${{ env.SPOKE_REPO }} --workflow deploy-s3.yml --limit 1 --json databaseId --jq '.[0].databaseId')
+          gh run watch $RUN_ID --repo ${{ env.SPOKE_REPO }} --exit-status
+
+  smoke-test:
+    needs: deploy-app
+    runs-on: ubuntu-latest
+    steps:
+      - name: HTTP smoke test
+        run: |
+          VM_IP="${{ vars.PETSHOP_VM_IP }}"
+          for i in 1 2 3; do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 45 "http://$VM_IP/")
+            if [[ "$STATUS" == "200" || "$STATUS" == "302" ]]; then
+              echo "? PetShop smoke test passed (HTTP $STATUS)"
+              exit 0
+            fi
+            echo "Attempt $i: $STATUS ? retrying (PetShop startup is slow with 21 projects)..."
+            sleep 30
+          done
+          echo "::error::Smoke test failed ? check MSMQ service and 4 DB connection strings"
+          exit 1

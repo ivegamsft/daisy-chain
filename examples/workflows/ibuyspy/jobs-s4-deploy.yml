@@ -1,0 +1,164 @@
+name: Jobs S4 ? App Service Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target environment'
+        required: true
+        type: choice
+        options: [dev, staging]
+        default: dev
+      run_smoke_test:
+        description: 'Run smoke test after deploy'
+        required: false
+        type: boolean
+        default: true
+
+permissions:
+  id-token: write   # OIDC ? required for azure/login
+  contents: read
+
+env:
+  APP_NAME: jobs
+  SPOKE_REPO: IBuySpy-Dev/app-jobs-migration
+
+jobs:
+  validate-names:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate CAF naming
+        run: |
+          RG="rg-jobs-${{ github.event.inputs.environment }}"
+          APP="app-jobs-${{ github.event.inputs.environment }}"
+
+          # Resource group must match: rg-<workload>-<env>
+          if [[ ! "$RG" =~ ^rg-[a-z0-9]+-[a-z0-9]+$ ]]; then
+            echo "::error::Resource group '$RG' does not match CAF pattern rg-<workload>-<env>"
+            exit 1
+          fi
+
+          # App Service must match: app-<workload>-<env>
+          if [[ ! "$APP" =~ ^app-[a-z0-9]+-[a-z0-9]+$ ]]; then
+            echo "::error::App Service name '$APP' does not match CAF pattern app-<workload>-<env>"
+            exit 1
+          fi
+
+          echo "? CAF naming valid: $RG / $APP"
+
+  validate-stored-procs:
+    needs: validate-names
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout factory repo
+        uses: actions/checkout@v6
+
+      - name: Check proc manifest exists
+        run: |
+          MANIFEST="docs/workloads/jobs/proc-manifest.txt"
+          if [ ! -f "$MANIFEST" ]; then
+            echo "::error::$MANIFEST not found. Run scripts/audit-stored-procs.ps1 against the legacy DB to generate it."
+            exit 1
+          fi
+          PROC_COUNT=$(grep -v '^\s*#' "$MANIFEST" | grep -v '^\s*$' | wc -l)
+          echo "? proc-manifest.txt found with ${PROC_COUNT} stored procedures"
+
+      - name: Checkout spoke repo
+        uses: actions/checkout@v6
+        with:
+          repository: ${{ env.SPOKE_REPO }}
+          token: ${{ secrets.SPOKE_PAT }}
+          path: spoke
+
+      - name: Check spoke SQL seed exists
+        run: |
+          SEED="spoke/database/sql-scripts/02-stored-procedures.sql"
+          if [ ! -f "$SEED" ]; then
+            echo "::error::$SEED not found in spoke repo. Add stored procedure definitions before deploying S4."
+            echo "::error::See docs/workloads/jobs/s4-http500-runbook.md for fix steps."
+            exit 1
+          fi
+          echo "? Spoke SQL seed found: $SEED"
+
+      - name: Validate SQL schema has all required procs
+        shell: pwsh
+        run: |
+          ./scripts/validate-sql-schema.ps1 `
+            -SeedSqlPath spoke/database/sql-scripts/02-stored-procedures.sql `
+            -ProcManifestPath docs/workloads/jobs/proc-manifest.txt
+
+  deploy:
+    needs: [validate-names, validate-stored-procs]
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Azure Login (OIDC)
+        uses: azure/login@v3
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Trigger spoke deployment
+        env:
+          GH_TOKEN: ${{ secrets.SPOKE_PAT }}
+        run: |
+          gh workflow run deploy-s4.yml \
+            --repo ${{ env.SPOKE_REPO }} \
+            --field environment=${{ github.event.inputs.environment }} \
+            --field resource_group=rg-jobs-${{ github.event.inputs.environment }} \
+            --field app_service_name=app-jobs-${{ github.event.inputs.environment }}
+
+      - name: Wait for spoke deployment
+        env:
+          GH_TOKEN: ${{ secrets.SPOKE_PAT }}
+        run: |
+          echo "Waiting 30s for spoke workflow to start..."
+          sleep 30
+          RUN_ID=$(gh run list \
+            --repo ${{ env.SPOKE_REPO }} \
+            --workflow deploy-s4.yml \
+            --limit 1 \
+            --json databaseId \
+            --jq '.[0].databaseId')
+          echo "Spoke run ID: $RUN_ID"
+          gh run watch "$RUN_ID" --repo ${{ env.SPOKE_REPO }} --exit-status
+
+  smoke-test:
+    needs: deploy
+    runs-on: ubuntu-latest
+    if: ${{ github.event.inputs.run_smoke_test == 'true' }}
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Smoke test ? HTTP health check
+        run: |
+          APP_URL="https://app-jobs-${{ github.event.inputs.environment }}.azurewebsites.net"
+          echo "Testing $APP_URL"
+
+          for i in 1 2 3; do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 "$APP_URL")
+            echo "Attempt $i: HTTP $STATUS"
+            if [[ "$STATUS" == "200" || "$STATUS" == "302" ]]; then
+              echo "? Smoke test passed (HTTP $STATUS)"
+              exit 0
+            fi
+            sleep 15
+          done
+
+          echo "::error::Smoke test failed after 3 attempts. Last status: $STATUS"
+          exit 1
+
+      - name: Smoke test ? membership redirect
+        run: |
+          APP_URL="https://app-jobs-${{ github.event.inputs.environment }}.azurewebsites.net"
+          # ASP.NET Membership apps redirect unauthenticated requests to /Login.aspx
+          REDIRECT=$(curl -s -o /dev/null -w "%{redirect_url}" "$APP_URL")
+          if echo "$REDIRECT" | grep -qi "login\|signin\|account"; then
+            echo "? Auth redirect working: $REDIRECT"
+          else
+            echo "??  No auth redirect detected (may be okay if forms auth is disabled in dev)"
+          fi

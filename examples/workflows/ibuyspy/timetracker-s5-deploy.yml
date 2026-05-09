@@ -1,0 +1,128 @@
+name: TimeTracker S5 ? Container Apps Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target environment'
+        required: true
+        type: choice
+        options: [dev, staging]
+        default: dev
+      image_tag:
+        description: 'Container image tag (default: git SHA)'
+        required: false
+        type: string
+
+concurrency:
+  group: deploy-timetracker-${{ github.event.inputs.environment }}
+  cancel-in-progress: false
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  APP_NAME: timetracker
+  RESOURCE_GROUP: rg-timetracker-${{ github.event.inputs.environment }}
+  ACR_NAME: crtimetracker${{ github.event.inputs.environment }}
+  CONTAINER_APP_NAME: ca-timetracker-${{ github.event.inputs.environment }}
+  CONTAINER_APP_ENV: cae-factory-${{ github.event.inputs.environment }}
+  SPOKE_REPO: IBuySpy-Dev/app-timetracker-migration
+  IMAGE_TAG: ${{ github.event.inputs.image_tag || github.sha }}
+
+jobs:
+  validate-names:
+    uses: ./.github/workflows/validate-caf-naming.yml
+    with:
+      resource_group: rg-timetracker-${{ github.event.inputs.environment }}
+
+  check-prerequisites:
+    name: Check prerequisites
+    needs: validate-names
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify SPOKE_PAT secret
+        run: |
+          if [ -z "${{ secrets.SPOKE_PAT }}" ]; then
+            echo "::error::SPOKE_PAT secret is not set. A GitHub PAT with 'workflow' scope on ${{ env.SPOKE_REPO }} is required."
+            exit 1
+          fi
+          echo "[OK] SPOKE_PAT is configured"
+
+  build-and-push:
+    needs: check-prerequisites
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Azure Login (OIDC)
+        uses: azure/login@v3
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Trigger spoke build + push
+        env:
+          GH_TOKEN: ${{ secrets.SPOKE_PAT }}
+        run: |
+          gh workflow run build-s5.yml \
+            --repo ${{ env.SPOKE_REPO }} \
+            --field environment=${{ github.event.inputs.environment }} \
+            --field image_tag=${{ env.IMAGE_TAG }} \
+            --field acr_name=${{ env.ACR_NAME }}
+
+          sleep 30
+          RUN_ID=$(gh run list --repo ${{ env.SPOKE_REPO }} --workflow build-s5.yml --limit 1 --json databaseId --jq '.[0].databaseId')
+          gh run watch $RUN_ID --repo ${{ env.SPOKE_REPO }} --exit-status
+
+  deploy:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Azure Login (OIDC)
+        uses: azure/login@v3
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Deploy to Container Apps
+        run: |
+          IMAGE="${{ env.ACR_NAME }}.azurecr.io/${{ env.APP_NAME }}-modern:${{ env.IMAGE_TAG }}"
+
+          az containerapp update \
+            --name ${{ env.CONTAINER_APP_NAME }} \
+            --resource-group ${{ env.RESOURCE_GROUP }} \
+            --image "$IMAGE" \
+            --set-env-vars "ASPNETCORE_ENVIRONMENT=${{ github.event.inputs.environment }}"
+
+      - name: Smoke test
+        run: |
+          APP_URL=$(az containerapp show \
+            --name ${{ env.CONTAINER_APP_NAME }} \
+            --resource-group ${{ env.RESOURCE_GROUP }} \
+            --query "properties.configuration.ingress.fqdn" -o tsv)
+
+          echo "Testing https://$APP_URL for TimeTracker UI (not just HTTP 200)"
+          for i in 1 2 3; do
+            BODY=$(curl -s --max-time 30 "https://$APP_URL/")
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 "https://$APP_URL/")
+            echo "Attempt $i: HTTP $STATUS"
+            if [[ "$STATUS" == "200" ]] && echo "$BODY" | grep -qi "time\|tracker\|project\|timesheet\|entry"; then
+              echo "[OK] Smoke test passed -- TimeTracker UI returned HTTP $STATUS with expected content"
+              exit 0
+            elif [[ "$STATUS" == "200" ]] && echo "$BODY" | grep -qi "Azure Container Apps\|Welcome to nginx"; then
+              echo "::error::HTTP 200 but ACA/nginx default page -- app image not deployed correctly (check ACR push)"
+              exit 1
+            fi
+            echo "Attempt $i: HTTP $STATUS -- retrying in 20s..."
+            sleep 20
+          done
+          echo "::error::Smoke test failed after 3 attempts -- expected TimeTracker UI content not found"
+          exit 1

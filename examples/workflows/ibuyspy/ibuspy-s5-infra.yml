@@ -1,0 +1,89 @@
+name: IBuySpy S5 ? Provision ACA Infrastructure
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target environment'
+        required: true
+        type: choice
+        options: [dev, staging]
+        default: dev
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  RESOURCE_GROUP: rg-ibuyspy-${{ github.event.inputs.environment }}
+  ACR_NAME: cribuyspydev
+  LOCATION: canadacentral
+
+jobs:
+  provision:
+    name: Provision ACA infra
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Azure Login (OIDC)
+        uses: azure/login@v3
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Create resource group
+        run: |
+          az group create \
+            --name ${{ env.RESOURCE_GROUP }} \
+            --location ${{ env.LOCATION }} \
+            --tags workload=ibuyspy environment=${{ github.event.inputs.environment }} factory=s5 \
+            2>/dev/null || echo "Resource group already exists, continuing..."
+          az group show --name ${{ env.RESOURCE_GROUP }} --query location -o tsv
+
+      - name: Create ACR
+        run: |
+          az acr create \
+            --name ${{ env.ACR_NAME }} \
+            --resource-group ${{ env.RESOURCE_GROUP }} \
+            --sku Basic \
+            --admin-enabled false \
+            2>/dev/null || echo "ACR already exists, continuing..."
+          az acr show --name ${{ env.ACR_NAME }} --query loginServer -o tsv
+
+      - name: Deploy ACA infrastructure (Bicep)
+        id: aca_deploy
+        run: |
+          az deployment group create \
+            --resource-group ${{ env.RESOURCE_GROUP }} \
+            --template-file infra/ibuyspy-s5-aca.bicep \
+            --parameters \
+              environment=${{ github.event.inputs.environment }} \
+              imageTag=placeholder \
+            --query "properties.outputs" -o json | tee infra-outputs.json
+
+          FQDN=$(cat infra-outputs.json | jq -r '.containerAppFqdn.value // empty')
+          echo "fqdn=$FQDN" >> "$GITHUB_OUTPUT"
+
+      - name: Assign ACR pull role to managed identity
+        run: |
+          ACR_ID=$(az acr show --name ${{ env.ACR_NAME }} --resource-group ${{ env.RESOURCE_GROUP }} --query id -o tsv)
+          IDENTITY_ID=$(az identity show \
+            --name id-ibuyspy-${{ github.event.inputs.environment }} \
+            --resource-group ${{ env.RESOURCE_GROUP }} \
+            --query principalId -o tsv)
+          az role assignment create \
+            --assignee-object-id "$IDENTITY_ID" \
+            --assignee-principal-type ServicePrincipal \
+            --role AcrPull \
+            --scope "$ACR_ID"
+
+      - name: Print infra summary
+        run: |
+          echo "? IBuySpy S5 infrastructure provisioned"
+          echo "Resource Group : ${{ env.RESOURCE_GROUP }}"
+          echo "ACR            : ${{ env.ACR_NAME }}.azurecr.io"
+          echo "Container App  : ca-ibuyspy-${{ github.event.inputs.environment }}"
+          echo "App URL        : https://${{ steps.aca_deploy.outputs.fqdn }}"

@@ -1,0 +1,110 @@
+name: PetShop S5 ? Provision ACA Infrastructure
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target environment'
+        required: true
+        type: choice
+        options: [dev, staging]
+        default: dev
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  APP_NAME: petshop
+  RESOURCE_GROUP: rg-petshop-${{ github.event.inputs.environment }}
+  ACR_NAME: crpetshopdev
+  LOCATION: canadacentral
+
+jobs:
+  provision:
+    name: Provision ACA infra
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Azure Login (OIDC)
+        uses: azure/login@v3
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      - name: Clone spoke repo
+        env:
+          GH_TOKEN: ${{ secrets.SPOKE_PAT }}
+        run: gh repo clone IBuySpy-Dev/app-petshop-migration /tmp/spoke
+      - name: Create resource group
+        run: |
+          az group create \
+            --name ${{ env.RESOURCE_GROUP }} \
+            --location ${{ env.LOCATION }} \
+            --tags workload=petshop environment=${{ github.event.inputs.environment }} factory=s5 \
+            2>/dev/null || echo "Resource group already exists"
+      - name: Create ACR
+        run: |
+          az acr create \
+            --name ${{ env.ACR_NAME }} \
+            --resource-group ${{ env.RESOURCE_GROUP }} \
+            --sku Basic --admin-enabled false \
+            2>/dev/null || echo "ACR already exists"
+          az acr show --name ${{ env.ACR_NAME }} --query loginServer -o tsv
+      - name: Resolve SQL server name
+        id: sql
+        run: |
+          SQL_SERVER=$(az sql server list \
+            --resource-group ${{ env.RESOURCE_GROUP }} \
+            --query '[0].name' -o tsv 2>/dev/null || echo '')
+          echo "sql_server=${SQL_SERVER}" >> "$GITHUB_OUTPUT"
+          echo "SQL server: ${SQL_SERVER:-none}"
+
+      - name: Bootstrap placeholder image in ACR
+        run: |
+          # Import a minimal ASP.NET image as placeholder so ACA can start a revision
+          # This allows the Bicep ServiceLinker to run (it needs a running Container App)
+          az acr import \
+            --name ${{ env.ACR_NAME }} \
+            --source mcr.microsoft.com/dotnet/aspnet:8.0-alpine \
+            --image ${{ env.APP_NAME }}:placeholder \
+            --force 2>/dev/null || echo "Placeholder image already exists"
+
+      - name: Deploy ACA infrastructure (Bicep)
+        id: aca_deploy
+        run: |
+          SQL_SERVER="${{ steps.sql.outputs.sql_server }}"
+          SQL_PARAMS=""
+          if [[ -n "$SQL_SERVER" ]]; then
+            SQL_PARAMS="sqlServerName=${SQL_SERVER} sqlDatabaseName=PetShopUnified"
+            echo "ServiceLinker will be configured for SQL server: $SQL_SERVER"
+          fi
+          az deployment group create \
+            --resource-group ${{ env.RESOURCE_GROUP }} \
+            --template-file /tmp/spoke/infra/s5-aca.bicep \
+            --parameters \
+              environment=${{ github.event.inputs.environment }} \
+              imageTag=placeholder \
+              acrName=${{ env.ACR_NAME }} \
+              $SQL_PARAMS \
+            --query "properties.outputs" -o json > infra-outputs.json
+          FQDN=$(cat infra-outputs.json | jq -r '.containerAppFqdn.value // empty')
+          echo "fqdn=$FQDN" >> "$GITHUB_OUTPUT"
+      - name: Assign ACR pull role to managed identity
+        run: |
+          ACR_ID=$(az acr show --name ${{ env.ACR_NAME }} --resource-group ${{ env.RESOURCE_GROUP }} --query id -o tsv)
+          IDENTITY_ID=$(az identity show \
+            --name id-petshop-${{ github.event.inputs.environment }} \
+            --resource-group ${{ env.RESOURCE_GROUP }} \
+            --query principalId -o tsv)
+          az role assignment create \
+            --assignee-object-id "$IDENTITY_ID" \
+            --assignee-principal-type ServicePrincipal \
+            --role AcrPull --scope "$ACR_ID"
+      - name: Print infra summary
+        run: |
+          echo "? PetShop S5 infrastructure provisioned"
+          echo "Resource Group : ${{ env.RESOURCE_GROUP }}"
+          echo "ACR            : ${{ env.ACR_NAME }}.azurecr.io"
+          echo "Container App  : ca-petshop-${{ github.event.inputs.environment }}"
+          echo "App URL        : https://${{ steps.aca_deploy.outputs.fqdn }}"

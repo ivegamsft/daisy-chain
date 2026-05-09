@@ -1,0 +1,1237 @@
+{
+  "schemaVersion": "1.1",
+  "lastUpdated": "2026-05-09",
+  "currentSprint": "S17",
+  "apps": [
+    {
+      "name": "jobs",
+      "displayName": "IBuySpy Jobs",
+      "spokeRepo": "IBuySpy-Dev/app-jobs-migration",
+      "stack": ".NET Framework 2.0 / ASP.NET WebForms",
+      "treatment": "Rehost",
+      "complexity": "LOW",
+      "stations": {
+        "S1": "done",
+        "S2": "done",
+        "S3": "done",
+        "S4": "done",
+        "S5": "blocked"
+      },
+      "currentSprint": "S17",
+      "azureUrl": "https://jobs-dev-web-xxu3io.azurewebsites.net/",
+      "lastValidated": null,
+      "notes": "S5 BLOCKED: API-only page deployed (Jobs Portal REST API). Original app had a full web UI with job listings, search, and apply flows. Current deploy serves API endpoint list only -- not the web application. Issue logged. S3/S4 done on IIS VM rehost. S5 modern .NET 8 app is API only, UI not built.",
+      "treatmentPath": "S1->S2->S3->S4->S5",
+      "factoryStatus": "blocked",
+      "treatmentOptions": {
+        "can": [
+          "Replatform"
+        ],
+        "shouldnt": [
+          "Rewrite"
+        ],
+        "recommended": "Rehost",
+        "cannot": [
+          "Reference",
+          "Retire"
+        ]
+      },
+      "inventory": {
+        "treatmentRationale": "Rehost to IIS on Azure VM first (fastest path). S5 modern .NET 8 rebuild is API-only -- original WebForms UI not ported.",
+        "architecture": "ASP.NET WebForms monolith, SQL Server backend, IIS hosted",
+        "risks": [
+          "Web Site Project format (no .csproj)",
+          "No unit tests",
+          "SQL schema tightly coupled to UI"
+        ],
+        "dependencies": [
+          "SQL Server 2000/2005",
+          "IIS 6",
+          ".NET 2.0 WebForms"
+        ]
+      }
+    },
+    {
+      "name": "timetracker",
+      "displayName": "IBuySpy TimeTracker",
+      "spokeRepo": "IBuySpy-Dev/app-timetracker-migration",
+      "stack": ".NET Framework 2.0 / ASP.NET WebForms",
+      "treatment": "Rehost",
+      "complexity": "MEDIUM",
+      "stations": {
+        "S1": "done",
+        "S2": "done",
+        "S3": "done",
+        "S4": "done",
+        "S5": "blocked"
+      },
+      "currentSprint": "S17",
+      "azureUrl": "https://ca-timetracker-dev.niceground-b2f44161.canadacentral.azurecontainerapps.io",
+      "lastValidated": null,
+      "notes": "S5 BLOCKED: ACA serving default Azure Container Apps welcome page -- app image not running. Issue #728. Content smoke test failed (title: 'Azure Container Apps - Welcome'). Marked FACTORY_COMPLETE incorrectly based on HTTP 200. Requires investigation: ACR image, deploy workflow, ACA revision status.",
+      "treatmentPath": "S1->S2->S3->S4->S5",
+      "factoryStatus": "complete",
+      "treatmentOptions": {
+        "can": [
+          "Rehost",
+          "Rewrite"
+        ],
+        "shouldnt": [
+          "Retire"
+        ],
+        "recommended": "Replatform",
+        "cannot": [
+          "Reference"
+        ]
+      },
+      "inventory": {
+        "treatmentRationale": "Replatform to ACA. S5 blocked: ACA not serving app image, shows default Azure page.",
+        "architecture": "ASP.NET Core MVC, SQL Server, Azure Container Apps",
+        "risks": [
+          "ACA serving default welcome page",
+          "Container image deployment issue"
+        ],
+        "dependencies": [
+          "ASP.NET Core",
+          "SQL Server",
+          "Entity Framework Core",
+          "Azure Container Apps"
+        ]
+      }
+    },
+    {
+      "name": "ibuyspy",
+      "displayName": "IBuySpy Portal",
+      "spokeRepo": "IBuySpy-Dev/app-ibuspy-migration",
+      "stack": ".NET Framework 2.0 / ASP.NET WebForms",
+      "treatment": "Rehost -> Rewrite",
+      "complexity": "HIGH",
+      "stations": {
+        "S1": "done",
+        "S2": "done",
+        "S3": "done",
+        "S4": "done",
+        "S5": "blocked"
+      },
+      "currentSprint": "S17",
+      "azureUrl": "https://ca-ibuyspy-dev.blackdesert-b59b0b0f.canadacentral.azurecontainerapps.io",
+      "lastValidated": null,
+      "notes": "S5 BLOCKED: ACA serving default Azure Container Apps welcome page -- app image not running. Issue #733. Content smoke test failed (title: 'Azure Container Apps - Welcome'). Marked FACTORY_COMPLETE incorrectly based on HTTP 200 only. Requires investigation: ACR image push, deploy workflow success, ACA revision.",
+      "treatmentPath": "S1->S2->S3->S4->S5",
+      "factoryStatus": "complete",
+      "treatmentOptions": {
+        "can": [
+          "Replatform"
+        ],
+        "shouldnt": [
+          "Rewrite"
+        ],
+        "recommended": "Rehost",
+        "cannot": [
+          "Retire",
+          "Reference"
+        ]
+      },
+      "inventory": {
+        "treatmentRationale": "Rehost first to validate Azure, then Refactor. S5 blocked: container image not running in ACA.",
+        "architecture": "ASP.NET WebForms, SQL Server, IIS -- 3-tier classic web app",
+        "risks": [
+          "ACA serving default welcome page -- container not deploying",
+          "Legacy WebForms hard to containerize"
+        ],
+        "dependencies": [
+          ".NET Framework 2.0",
+          "SQL Server",
+          "IIS",
+          "ASP.NET WebForms"
+        ]
+      }
+    },
+    {
+      "name": "classifieds",
+      "displayName": "IBuySpy Classifieds",
+      "spokeRepo": "IBuySpy-Dev/app-classifieds-migration",
+      "stack": ".NET Framework 4.x / ASP.NET WebForms (C#)",
+      "treatment": "Rehost -> Replatform",
+      "complexity": "MEDIUM",
+      "stations": {
+        "S1": "done",
+        "S2": "done",
+        "S3": "skipped",
+        "S4": "blocked",
+        "S5": "pending"
+      },
+      "currentSprint": "S17",
+      "azureUrl": "https://app-classifieds-dev.azurewebsites.net/",
+      "lastValidated": null,
+      "notes": "S4 BLOCKED: App returning 502 Bad Gateway. Issue #727 logged. S4 was previously marked done based on HTTP 200 at root -- not content-verified. S3 skipped (App Service supports managed identity natively). S5 cannot start until S4 is verified working.",
+      "treatmentPath": "S1->S2->S4->S5",
+      "factoryStatus": "blocked",
+      "treatmentOptions": {
+        "can": [
+          "Rehost",
+          "Rewrite"
+        ],
+        "shouldnt": [
+          "Retire"
+        ],
+        "recommended": "Replatform",
+        "cannot": [
+          "Reference"
+        ]
+      },
+      "inventory": {
+        "treatmentRationale": "Replatform to ACA. App Service deployment done (S3/S4) but 502 error blocking final validation.",
+        "architecture": "ASP.NET Core Razor Pages, SQL Server, Azure App Service",
+        "risks": [
+          "502 Bad Gateway at S4",
+          "Connection string / managed identity configuration"
+        ],
+        "dependencies": [
+          "ASP.NET Core",
+          "SQL Server",
+          "Azure App Service",
+          "Entity Framework Core"
+        ]
+      }
+    },
+    {
+      "name": "petshop",
+      "displayName": "IBuySpy PetShop (.NET)",
+      "spokeRepo": "IBuySpy-Dev/app-petshop-migration",
+      "stack": ".NET Framework 2.0/4.x / ASP.NET WebForms (21 projects)",
+      "treatment": "Rehost -> Replatform",
+      "complexity": "HIGH",
+      "stations": {
+        "S1": "done",
+        "S2": "done",
+        "S3": "done",
+        "S4": "done",
+        "S5": "blocked"
+      },
+      "currentSprint": "S18",
+      "azureUrl": "https://ca-petshop-dev.graytree-b2e82a66.canadacentral.azurecontainerapps.io",
+      "lastValidated": null,
+      "notes": "S5 BLOCKED: ACA app returns HTTP 500 -- SQL 18456 login failed. Andon cord pulled. Issue #732. Root cause: ServiceLinker creates SQL contained user for wrong principal (app-petshop-dev OID 0c8f647b) instead of user-assigned MI id-petshop-dev (OID ee7e3776). Manual workaround applied (contained user created via SQL admin) but not CI-driven. Required fix: replace ServiceLinker SQL grant with explicit sqlcmd step in infra workflow. Marked FACTORY_COMPLETE incorrectly based on /healthz/ready HTTP 200 only.",
+      "treatmentPath": "S1->S2->S3->S4->S5",
+      "factoryStatus": "complete",
+      "treatmentOptions": {
+        "can": [
+          "Rehost",
+          "Rewrite"
+        ],
+        "shouldnt": [
+          "Reference"
+        ],
+        "recommended": "Replatform",
+        "cannot": [
+          "Retire"
+        ]
+      },
+      "inventory": {
+        "treatmentRationale": "Replatform to Azure Container Apps. Modern .NET 8 rebuild completed but blocked on SQL auth.",
+        "architecture": ".NET Framework 4.5 layered architecture, SQL Server, ASP.NET MVC",
+        "risks": [
+          "SQL managed identity login failures (HTTP 500)",
+          "ServiceLinker provisioning complexity"
+        ],
+        "dependencies": [
+          "SQL Server",
+          "ASP.NET MVC 5",
+          ".NET 4.5",
+          "Entity Framework"
+        ]
+      }
+    },
+    {
+      "name": "ccverify",
+      "displayName": "CC Verify",
+      "spokeRepo": "IBuySpy-Dev/ccverify",
+      "stack": "Classic ASP / VBScript",
+      "treatment": "Rewrite",
+      "complexity": null,
+      "stations": {
+        "S1": "done",
+        "S2": "done",
+        "S3": "n/a",
+        "S4": "n/a",
+        "S5": "n/a",
+        "Rewrite": "done"
+      },
+      "currentSprint": "S17",
+      "azureUrl": null,
+      "lastValidated": "2026-05-09",
+      "notes": "Rewrite COMPLETE (S17): Phase 1 (Luhn) + Phase 2 (CardNetworkDetector + CardValidator) merged. All xUnit tests passing. Spoke: IBuySpy-Dev/ccverify main. Library: CCVerify.Library with Visa/MC/Amex/Discover BIN detection + Luhn validation.",
+      "treatmentPath": "S1->S2->Rewrite",
+      "factoryStatus": "complete"
+    },
+    {
+      "name": "spfortunecookie",
+      "displayName": "SPFortuneCookie",
+      "spokeRepo": "IBuySpy-Dev/SPFortuneCookie",
+      "stack": "SharePoint 2013",
+      "treatment": "Reference",
+      "complexity": null,
+      "stations": {
+        "S1": "done",
+        "S2": "done",
+        "S3": "n/a",
+        "S4": "n/a",
+        "S5": "n/a"
+      },
+      "currentSprint": null,
+      "azureUrl": null,
+      "lastValidated": "2025-05-08",
+      "notes": "FACTORY COMPLETE (Reference). S1 inventory + S2 assessment complete. No migration required ╬ô├ç├╢ reference implementation.",
+      "treatmentPath": "S1->S2->Reference",
+      "factoryStatus": "complete"
+    },
+    {
+      "name": "filesharebrowser",
+      "displayName": "FileShareBrowser",
+      "spokeRepo": "IBuySpy-Dev/FileShareBrowser",
+      "stack": "SharePoint 2013 / ASP.NET MVC",
+      "treatment": "Retire",
+      "complexity": null,
+      "stations": {
+        "S1": "done",
+        "S2": "done",
+        "S3": "n/a",
+        "S4": "n/a",
+        "S5": "n/a"
+      },
+      "currentSprint": null,
+      "azureUrl": null,
+      "lastValidated": "2026-05-09",
+      "notes": "FACTORY COMPLETE. Treatment corrected to Retire Γö£├│╬ô├⌐┬╝╬ô├ç┬Ñ requires domain-joined server + Kerberos constrained delegation + Windows impersonation via UNC shares. Unportable to Azure PaaS. Core capabilities replaced by Azure Files + AD DS, SharePoint libraries, Microsoft Graph. S1 inventory complete.",
+      "treatmentPath": "S1->S2->Retire",
+      "factoryStatus": "complete"
+    },
+    {
+      "name": "wia",
+      "displayName": "WIA",
+      "spokeRepo": "IBuySpy-Dev/WIA",
+      "stack": "ASP.NET 4.5 WebForms / .NET Framework 4.5",
+      "treatment": "Replatform",
+      "complexity": "VERY LOW",
+      "stations": {
+        "S1": "done",
+        "S2": "done",
+        "S3": "n/a",
+        "S4": "done",
+        "S5": "n/a"
+      },
+      "currentSprint": null,
+      "azureUrl": null,
+      "lastValidated": "2026-05-08",
+      "notes": "FACTORY COMPLETE. Treatment path S1->S2->S4 all done. S3 not required ╬ô├ç├╢ Windows Auth supported on App Service Windows plan, no COM+/MSMQ/Windows Services. S4 replatform complete. No S5 required for this treatment path.",
+      "treatmentPath": "S1->S2->S4",
+      "factoryStatus": "complete"
+    },
+    {
+      "name": "webapp-openidconnect-nodejs",
+      "displayName": "WebApp-OpenIDConnect-NodeJS",
+      "spokeRepo": "IBuySpy-Dev/WebApp-OpenIDConnect-NodeJS",
+      "stack": "Node.js / Express",
+      "treatment": "Reference",
+      "complexity": null,
+      "stations": {
+        "S1": "done",
+        "S2": "done",
+        "S3": "n/a",
+        "S4": "n/a",
+        "S5": "n/a"
+      },
+      "currentSprint": null,
+      "azureUrl": null,
+      "lastValidated": "2025-05-08",
+      "notes": "FACTORY COMPLETE (Reference). S1 inventory + S2 assessment complete. No migration required ╬ô├ç├╢ reference implementation.",
+      "treatmentPath": "S1->S2->Reference",
+      "factoryStatus": "complete"
+    },
+    {
+      "name": "todo-nodejs-mongo",
+      "displayName": "Todo App -- Node.js + Cosmos DB (Mongo)",
+      "spokeRepo": "IBuySpy-Dev/todo-nodejs-mongo",
+      "stack": "Node.js / React / Azure Cosmos DB (Mongo API) / Azure App Service / Azure Monitor / Key Vault / azd",
+      "treatment": "Reference",
+      "complexity": "LOW",
+      "stations": {
+        "S1": "done",
+        "S2": "done",
+        "S3": "n/a",
+        "S4": "n/a",
+        "S5": "n/a"
+      },
+      "currentSprint": null,
+      "azureUrl": null,
+      "lastValidated": null,
+      "notes": "INTAKE REASSESSED 2026-05-09. azd gallery template -- Node.js API + React frontend + Cosmos DB (Mongo) + App Service + Key Vault + Azure Monitor. Already cloud-native with full IaC. Reference pattern for azd-based Node.js + Cosmos DB deployments. Est. $164/month running cost documented in README.",
+      "treatmentPath": "S1->S2->Reference",
+      "factoryStatus": "complete"
+    },
+    {
+      "name": "spring-petclinic",
+      "displayName": "Spring PetClinic",
+      "spokeRepo": "IBuySpy-Dev/spring-petclinic",
+      "stack": "Java 8/11/17 / Spring Boot / Maven / Thymeleaf / H2 / MySQL / PostgreSQL",
+      "treatment": "Replatform",
+      "complexity": "LOW",
+      "stations": {
+        "S1": "done",
+        "S2": "done",
+        "S3": "n/a",
+        "S4": "pending",
+        "S5": "pending"
+      },
+      "currentSprint": null,
+      "azureUrl": null,
+      "lastValidated": null,
+      "notes": "INTAKE REASSESSED 2026-05-09. Well-maintained Spring Boot reference app with Docker Compose + multi-DB profiles. Treatment corrected from Reference to Replatform -- deploy JAR to Azure App Service for Java (zero containerization needed). S1+S2 complete from prior sprint. S4 pending.",
+      "treatmentPath": "S1->S2->S4->S5",
+      "factoryStatus": "in-progress"
+    },
+    {
+      "name": "schemajeli",
+      "displayName": "SchemaJeli",
+      "spokeRepo": "IBuySpy-Dev/SchemaJeli",
+      "stack": "TypeScript / React 19",
+      "treatment": "Reference",
+      "complexity": null,
+      "stations": {
+        "S1": "done",
+        "S2": "done",
+        "S3": "n/a",
+        "S4": "n/a",
+        "S5": "n/a"
+      },
+      "currentSprint": null,
+      "azureUrl": null,
+      "lastValidated": "2025-05-08",
+      "notes": "FACTORY COMPLETE (Reference). S1 inventory + S2 assessment complete. No migration required ╬ô├ç├╢ reference implementation.",
+      "treatmentPath": "S1->S2->Reference",
+      "factoryStatus": "complete"
+    },
+    {
+      "name": "rails-app",
+      "displayName": "Rails App",
+      "spokeRepo": "IBuySpy-Dev/rails-app",
+      "stack": "Ruby / Rails 7",
+      "treatment": "Replatform",
+      "complexity": null,
+      "stations": {
+        "S1": "done",
+        "S2": "done",
+        "S3": "n/a",
+        "S4": "blocked",
+        "S5": "n/a"
+      },
+      "currentSprint": null,
+      "azureUrl": null,
+      "lastValidated": null,
+      "notes": "S4 BLOCKED (andon cord pulled): App container crashes immediately -- ENTRYPOINT failure in appsvc/ruby:latest_20210716.1. Issue: rails-app#3. Root cause: .ruby-version mismatch with image Ruby version.",
+      "treatmentPath": "S1->S2->S4",
+      "currentStation": "S4",
+      "factoryStatus": "blocked"
+    },
+    {
+      "name": "petshop-java",
+      "displayName": "Java Pet Store 1.3.2 (J2EE)",
+      "spokeRepo": "IBuySpy-Dev/PetShop_1_3_2-Java",
+      "stack": "Java / J2EE 1.3 / EAR / Pre-Maven (JBoss 3.x / WebLogic 8.x era)",
+      "treatment": "Rewrite",
+      "complexity": "VERY HIGH",
+      "stations": {
+        "S1": "done",
+        "S2": "done",
+        "S3": "n/a",
+        "S4": "n/a",
+        "S5": "pending"
+      },
+      "currentSprint": null,
+      "azureUrl": null,
+      "lastValidated": null,
+      "notes": "INTAKE REASSESSED 2026-05-09. ~20-year-old J2EE 1.3 app distributed as pre-compiled EAR files (petstore.ear, petstoreadmin.ear, supplier.ear). No modern build system. Requires JBoss 3.x/WebSphere 5.x to run as-is -- not viable Azure PaaS targets. Treatment: Rewrite as Spring Boot or Quarkus. If training artifact only, consider Retire instead. S2 assessment complete, S5 rewrite pending.",
+      "treatmentPath": "S1->S2->S5-Rewrite",
+      "factoryStatus": "in-progress"
+    },
+    {
+      "name": "fakecms",
+      "displayName": "FakeCMS",
+      "spokeRepo": "IBuySpy-Dev/FakeCMS",
+      "stack": "React / Node.js / Azure Cognitive Search / Azure OpenAI / PostgreSQL / Terraform / App Insights",
+      "treatment": "Reference",
+      "complexity": "MEDIUM",
+      "stations": {
+        "S1": "done",
+        "S2": "done",
+        "S3": "n/a",
+        "S4": "n/a",
+        "S5": "n/a"
+      },
+      "currentSprint": null,
+      "azureUrl": null,
+      "lastValidated": null,
+      "notes": "INTAKE REASSESSED 2026-05-09. Already cloud-native: React + Node.js + Azure Cognitive Search + Azure OpenAI + PostgreSQL + Key Vault + Terraform + App Insights. Purpose-built reference for Azure AI-integrated CMS pattern. No migration work required -- reference implementation for AI-augmented content management.",
+      "treatmentPath": "S1->S2->Reference",
+      "factoryStatus": "complete"
+    },
+    {
+      "name": "django-app",
+      "displayName": "Django App",
+      "spokeRepo": "IBuySpy-Dev/django-app",
+      "stack": "Python / Django 4",
+      "treatment": "Replatform",
+      "complexity": "LOW-MEDIUM",
+      "stations": {
+        "S1": "done",
+        "S2": "done",
+        "S3": "n/a",
+        "S4": "blocked",
+        "S5": "n/a"
+      },
+      "currentSprint": null,
+      "azureUrl": null,
+      "lastValidated": "2026-05-09",
+      "notes": "S4 BLOCKED (andon cord pulled): django-app#6. App Service Python startup failures. requirements.txt, startup.sh (ODBC Driver 18), App Service Linux Bicep + deploy workflow created. Spoke PR #3 merged to master. Blocked on container startup issues.",
+      "treatmentPath": "S1->S2->S4",
+      "currentStation": "S4",
+      "factoryStatus": "blocked"
+    },
+    {
+      "name": "csu-digiapps-j2ee",
+      "displayName": "CSU DigiApps J2EE on Azure",
+      "spokeRepo": "IBuySpy-Dev/csu-digiapps-p-j2ee-on-azure",
+      "stack": "Java / J2EE / Azure VMs / GitHub Actions",
+      "treatment": "Replatform",
+      "complexity": "HIGH",
+      "stations": {
+        "S1": "done",
+        "S2": "done",
+        "S3": "pending",
+        "S4": "pending",
+        "S5": "pending"
+      },
+      "currentSprint": null,
+      "azureUrl": null,
+      "lastValidated": null,
+      "notes": "INTAKE REASSESSED 2026-05-09. Wraps J2EE Pet Store with Azure VM deployment automation. Treatment corrected from Lab/Guide to Replatform -- containerize WAR/EAR and migrate to Azure App Service for Java (JBoss EAP) or Azure Container Apps with WildFly base image. Blockers: J2EE 1.3 EE spec may require licensed JBoss EAP; validate EAP vs. open WildFly; JNDI datasource names need audit before containerization.",
+      "treatmentPath": "S1->S2->S3->S4->S5",
+      "factoryStatus": "in-progress"
+    },
+    {
+      "name": "appsample-photosharing",
+      "displayName": "Appsample Photosharing",
+      "spokeRepo": "IBuySpy-Dev/Appsample-Photosharing",
+      "stack": "UWP / C#",
+      "treatment": "Reference",
+      "complexity": null,
+      "stations": {
+        "S1": "done",
+        "S2": "done",
+        "S3": "n/a",
+        "S4": "n/a",
+        "S5": "n/a"
+      },
+      "currentSprint": null,
+      "azureUrl": null,
+      "lastValidated": "2025-05-08",
+      "notes": "FACTORY COMPLETE (Reference). S1 inventory + S2 assessment complete. No migration required ╬ô├ç├╢ reference implementation.",
+      "treatmentPath": "S1->S2->Reference",
+      "factoryStatus": "complete"
+    },
+    {
+      "name": "vanarsdel",
+      "displayName": "VanArsdel",
+      "spokeRepo": "IBuySpy-Dev/VanArsdel",
+      "stack": "UWP / C# / XAML",
+      "treatment": "Reference",
+      "complexity": null,
+      "stations": {
+        "S1": "done",
+        "S2": "done",
+        "S3": "n/a",
+        "S4": "n/a",
+        "S5": "n/a"
+      },
+      "currentSprint": null,
+      "azureUrl": null,
+      "lastValidated": "2025-05-08",
+      "notes": "FACTORY COMPLETE (Reference). S1 inventory + S2 assessment complete. No migration required ╬ô├ç├╢ reference implementation.",
+      "treatmentPath": "S1->S2->Reference",
+      "factoryStatus": "complete"
+    },
+    {
+      "name": "inventorysample",
+      "displayName": "InventorySample",
+      "spokeRepo": "IBuySpy-Dev/InventorySample",
+      "stack": "UWP / C# / MVVM",
+      "treatment": "Reference",
+      "complexity": null,
+      "stations": {
+        "S1": "done",
+        "S2": "done",
+        "S3": "n/a",
+        "S4": "n/a",
+        "S5": "n/a"
+      },
+      "currentSprint": null,
+      "azureUrl": null,
+      "lastValidated": "2025-05-08",
+      "notes": "FACTORY COMPLETE (Reference). S1 inventory + S2 assessment complete. No migration required ╬ô├ç├╢ reference implementation.",
+      "treatmentPath": "S1->S2->Reference",
+      "factoryStatus": "complete"
+    },
+    {
+      "name": "vcsamples",
+      "displayName": "VCSamples",
+      "spokeRepo": "IBuySpy-Dev/VCSamples",
+      "stack": "C++ / Win32 / MFC",
+      "treatment": "Reference",
+      "complexity": null,
+      "stations": {
+        "S1": "done",
+        "S2": "done",
+        "S3": "n/a",
+        "S4": "n/a",
+        "S5": "n/a"
+      },
+      "currentSprint": null,
+      "azureUrl": null,
+      "lastValidated": "2025-05-08",
+      "notes": "FACTORY COMPLETE (Reference). S1 inventory + S2 assessment complete. No migration required ╬ô├ç├╢ reference implementation.",
+      "treatmentPath": "S1->S2->Reference",
+      "factoryStatus": "complete"
+    },
+    {
+      "name": "luxesite",
+      "displayName": "Aurora Luxe (LuxeSite)",
+      "spokeRepo": "IBuySpy-Dev/luxesite",
+      "stack": "TypeScript / Next.js 16 / React 19 / Tailwind CSS 4 / Framer Motion",
+      "treatment": "Reference",
+      "complexity": "LOW",
+      "stations": {
+        "S1": "pending",
+        "S2": "pending"
+      },
+      "currentSprint": null,
+      "azureUrl": null,
+      "lastValidated": null,
+      "notes": "INTAKE 2026-05-09. Modern cloud-native teaching site with zero backend, zero database, mock-only data. Already deployable to Azure Static Web Apps as-is. No migration work required -- reference artifact for modern Next.js/React patterns.",
+      "treatmentPath": "S1->S2->Reference",
+      "factoryStatus": "in-progress"
+    },
+    {
+      "name": "award-predictor",
+      "displayName": "Award Predictor",
+      "spokeRepo": "IBuySpy-Dev/AwardPredictor",
+      "stack": "Python 3.10+ / FastAPI / Streamlit / scikit-learn / Docker / Azure ML",
+      "treatment": "Replatform",
+      "complexity": "MEDIUM",
+      "stations": {
+        "S1": "pending",
+        "S2": "pending",
+        "S4": "pending",
+        "S5": "pending"
+      },
+      "currentSprint": null,
+      "azureUrl": null,
+      "lastValidated": null,
+      "notes": "INTAKE 2026-05-09. Dockerized FastAPI + Streamlit with Medallion data layers (Bronze/Silver/Gold). Target: Azure Container Apps + Azure Data Lake Gen2 + Azure ML Model Registry + Key Vault. Blockers: Spotify Web API OAuth creds need Key Vault migration; trained model artifacts in models/ need Azure ML or Blob storage target.",
+      "treatmentPath": "S1->S2->S4->S5",
+      "factoryStatus": "in-progress"
+    },
+    {
+      "name": "capacity-planning-dashboard",
+      "displayName": "Capacity Planning Dashboard",
+      "spokeRepo": "IBuySpy-Dev/Capacity-Planning-Dashboard",
+      "stack": "Node.js / Express / Azure SQL / Bicep / Azure Functions PowerShell 7 / Managed Identity / App Insights",
+      "treatment": "Replatform",
+      "complexity": "MEDIUM",
+      "stations": {
+        "S1": "pending",
+        "S2": "pending",
+        "S4": "pending",
+        "S5": "pending"
+      },
+      "currentSprint": null,
+      "azureUrl": null,
+      "lastValidated": null,
+      "notes": "INTAKE 2026-05-09. Cloud-native Node.js + Azure SQL + Bicep IaC + Managed Identity already in place. Factory effort: CI/CD pipeline, Azure Functions PowerShell worker validation, quota approval/request-tracking workflow. Blockers: output.txt committed to root (should be gitignored); CI/CD pipeline incomplete; PowerShell 7 Functions module restore needs validation.",
+      "treatmentPath": "S1->S2->S4->S5",
+      "factoryStatus": "in-progress"
+    },
+    {
+      "name": "work-tracker",
+      "displayName": "e-clat -- Employee Compliance & Lifecycle Activity Tracker",
+      "spokeRepo": "IBuySpy-Dev/work-tracker",
+      "stack": "Node.js / TypeScript / Express / PostgreSQL / Prisma ORM / JWT / RBAC / Terraform / GitHub Actions",
+      "treatment": "Replatform",
+      "complexity": "MEDIUM",
+      "stations": {
+        "S1": "pending",
+        "S2": "pending",
+        "S4": "pending",
+        "S5": "pending"
+      },
+      "currentSprint": null,
+      "azureUrl": null,
+      "lastValidated": null,
+      "notes": "INTAKE 2026-05-09. Production-grade API (11 modules, 415 tests, Prisma migrations, 5-role RBAC, Terraform IaC). Target: Azure App Service + Azure Database for PostgreSQL Flexible Server + Key Vault. Blockers: apps/web and apps/admin frontends are TBD scaffolds -- completion required before S5. Regulated-industry use case (workforce compliance) -- data residency and audit-logging requirements need confirmation.",
+      "treatmentPath": "S1->S2->S4->S5",
+      "factoryStatus": "in-progress"
+    },
+    {
+      "name": "ibuyspy-v4",
+      "displayName": "IBuySpy V4 -- Modern Reference Architecture",
+      "spokeRepo": "IBuySpy-Dev/ibuyspy-v4",
+      "stack": "ASP.NET 4.8 / .NET 8 API / Node.js AI layer / Terraform / AKS / APIM / Front Door / Cosmos DB / Redis",
+      "treatment": "Reference",
+      "type": "modern-reference",
+      "complexity": "VERY HIGH",
+      "stations": {
+        "S1": "done",
+        "S2": "done",
+        "S3": "n/a",
+        "S4": "n/a",
+        "S5": "n/a"
+      },
+      "currentSprint": null,
+      "azureUrl": null,
+      "lastValidated": null,
+      "notes": "INTAKE REASSESSED 2026-05-09. IS a modernization migration -- lifts 2005 ASP.NET 4.8 WebForms to Azure with parallel .NET 8 management API, Node.js AI layer, Terraform IaC (48+ resources), OIDC auth, private networking, 4 deployment slots. Canonical factory reference pattern for ASP.NET 4.x -> Azure App Service migrations. Not a net-new migration candidate -- reference only. Notes: repo slug ibuyspy-v4 / README says V3 -- versioning needs clarification.",
+      "treatmentPath": "S1->S2->Reference",
+      "factoryStatus": "complete"
+    },
+    {
+      "name": "coecheck",
+      "displayName": "NextRung -- Maturity & Skills Assessment Platform",
+      "spokeRepo": "IBuySpy-Dev/COECheck",
+      "stack": "React 18 / TypeScript / Vite 6 / MUI v6 / Node.js / Express / Azure Cosmos DB / MSAL / Terraform / Docker / Playwright",
+      "treatment": "Replatform",
+      "type": "modern-app",
+      "complexity": "MEDIUM",
+      "defaultBranch": "master",
+      "stations": {
+        "S1": "done",
+        "S2": "done",
+        "S3": "n/a",
+        "S4": "blocked",
+        "S5": "pending"
+      },
+      "currentSprint": null,
+      "azureUrl": null,
+      "lastValidated": null,
+      "notes": "INTAKE REASSESSED 2026-05-09. Production-quality schema-driven assessment engine with 8 assessment types + full RBAC. Already cloud-native (Cosmos DB, Azure AD MSAL, Docker, Terraform, App Insights). S4 BLOCKED: CI failing -- CRITICAL Cosmos DB AAD auth failure (#309), MSAL redirect URI mismatch (#317). Legacy AngularJS fallback in app/public/ should be retired. Azure AD app registration needs hardening for production tenant.",
+      "treatmentPath": "S1->S2->S4->S5",
+      "factoryStatus": "blocked"
+    },
+    {
+      "name": "wawkr",
+      "displayName": "WawkR -- Premium Pet Walking & Tracking App",
+      "spokeRepo": "ivegamsft/wawkr",
+      "stack": "TypeScript / Next.js (web) / React Native Expo (mobile) / pnpm monorepo / Turborepo / Azure Bicep / Azure Container Apps / Static Web Apps",
+      "treatment": "Reference",
+      "complexity": "MEDIUM",
+      "stations": {
+        "S1": "pending",
+        "S2": "pending"
+      },
+      "currentSprint": null,
+      "azureUrl": null,
+      "lastValidated": null,
+      "notes": "INTAKE 2026-05-09. Modern cloud-native monorepo -- web (Next.js) + mobile (Expo/React Native) + shared packages (tokens, types, api client). Full Azure Bicep IaC with 8-layer deployment (Foundation->DNS->Security->Data->RBAC->Compute->Ingress->Frontend). Azure Container Apps (API) + Static Web Apps (frontend). 6-skin theme system. Reference for modern pnpm/Turborepo monorepo + Azure architecture.",
+      "treatmentPath": "S1->S2->Reference",
+      "factoryStatus": "in-progress"
+    },
+    {
+      "name": "tpms-iot-demo",
+      "displayName": "TPMS IoT Demo -- Tire Pressure Management System",
+      "spokeRepo": "ivegamsft/TPMSIoTDemo",
+      "stack": ".NET Framework / C# Console Apps / Azure IoT Hub / Azure Event Hub / Azure Service Bus / Terraform",
+      "treatment": "Replatform",
+      "complexity": "LOW",
+      "stations": {
+        "S1": "pending",
+        "S2": "pending",
+        "S4": "pending",
+        "S5": "pending"
+      },
+      "currentSprint": null,
+      "azureUrl": null,
+      "lastValidated": null,
+      "notes": "INTAKE 2026-05-09. IoT tire pressure simulation demo -- 5 console apps (Common, EventHubSender, EventHubReader, IoTHubSender, IoTHubRemoveCars). Has Terraform IaC but connection strings hardcoded in app.config. Target: .NET 8 + Managed Identity + Azure Functions (EventHub trigger) or Container Jobs. Blockers: SAS token auth in app.config must be replaced with MI before Azure PaaS deploy.",
+      "treatmentPath": "S1->S2->S4->S5",
+      "factoryStatus": "in-progress"
+    },
+    {
+      "name": "storage-blob-resize-function-node",
+      "displayName": "Azure Blob Storage Image Resize Function (Node.js)",
+      "spokeRepo": "Azure-Samples/storage-blob-resize-function-node",
+      "stack": "Node.js / Azure Functions / Azure Blob Storage / Event Grid / Jimp",
+      "treatment": "Reference",
+      "complexity": "LOW",
+      "stations": {
+        "S1": "pending",
+        "S2": "pending"
+      },
+      "currentSprint": null,
+      "azureUrl": null,
+      "lastValidated": null,
+      "notes": "INTAKE 2026-05-09. Azure Functions reference sample -- Event Grid blob trigger resizes images and uploads thumbnails back to blob storage. Has IaC (infra/) and azure.yaml for azd. Reference pattern for Azure Functions blob processing pipelines.",
+      "treatmentPath": "S1->S2->Reference",
+      "factoryStatus": "in-progress"
+    },
+    {
+      "name": "share-as-you-go",
+      "displayName": "Share As You Go -- Azure POC Collection",
+      "spokeRepo": "embergershared/share-as-you-go",
+      "stack": "Multi-language (C# / AKS / Terraform / Azure patterns)",
+      "treatment": "Reference",
+      "complexity": "LOW",
+      "stations": {
+        "S1": "pending",
+        "S2": "pending"
+      },
+      "currentSprint": null,
+      "azureUrl": null,
+      "lastValidated": null,
+      "notes": "INTAKE 2026-05-09. Collection of POCs, customer questions, and internal Azure work -- AKS DevDays, Terraform patterns, C# samples. Not a single deployable app. Reference artifact for Azure patterns and AKS configurations. No migration work required.",
+      "treatmentPath": "S1->S2->Reference",
+      "factoryStatus": "in-progress"
+    },
+    {
+      "name": "see4me",
+      "displayName": "See4Me -- Cross-Platform Cognitive Vision App",
+      "spokeRepo": "DotNetToscana/See4Me",
+      "stack": "C# / Xamarin (cross-platform) / Microsoft Cognitive Services (Vision, Emotion, Translator)",
+      "treatment": "Retire",
+      "complexity": "MEDIUM",
+      "stations": {
+        "S1": "pending",
+        "S2": "pending"
+      },
+      "currentSprint": null,
+      "azureUrl": null,
+      "lastValidated": null,
+      "notes": "INTAKE 2026-05-09. Cross-platform mobile app using Xamarin (Windows 10, iOS) + Microsoft Cognitive Services Vision/Emotion/Translator APIs. Xamarin is deprecated (superseded by .NET MAUI). Cognitive Services Emotion API retired. Recommendation: Retire as-is. If business value warrants continuation, rewrite with .NET MAUI + Azure AI Vision.",
+      "treatmentPath": "S1->S2->Retire",
+      "factoryStatus": "in-progress"
+    },
+    {
+      "name": "silver-waddle",
+      "displayName": "Silver Waddle -- Data & AI Web Application",
+      "spokeRepo": "ivegamsft/silver-waddle",
+      "stack": "Frontend (fe-app) / Backend (be-app) / Terraform / Azure SQL / Azure Key Vault / Microsoft Fabric / Event Hub / VNet / Private Endpoints",
+      "treatment": "Replatform",
+      "complexity": "MEDIUM",
+      "stations": {
+        "S1": "pending",
+        "S2": "pending",
+        "S4": "pending",
+        "S5": "pending"
+      },
+      "currentSprint": null,
+      "azureUrl": null,
+      "lastValidated": null,
+      "notes": "INTAKE 2026-05-09. Full-stack web app with Terraform IaC -- 2-phase deployment (core: Key Vault + Storage + Entra ID; infra: VNet + SQL + Microsoft Fabric + Event Hub with private endpoints). Has data-agent in agents/. Terraform state on file (needs backend migration to Azure Storage). Target: complete CI/CD, validate Managed Identity on SQL + Fabric.",
+      "treatmentPath": "S1->S2->S4->S5",
+      "factoryStatus": "in-progress"
+    },
+    {
+      "name": "qrcode-dotnet-bitmap",
+      "displayName": "QR Code Generator -- .NET Core with Bitmap",
+      "spokeRepo": "CoreProgramm/QR-Code-in-.NET-Core-using-Bitmap",
+      "stack": ".NET Core 3.1 / ASP.NET Core MVC / QRCoder NuGet / System.Drawing.Bitmap",
+      "treatment": "Replatform",
+      "complexity": "LOW",
+      "stations": {
+        "S1": "pending",
+        "S2": "pending",
+        "S4": "pending",
+        "S5": "pending"
+      },
+      "currentSprint": null,
+      "azureUrl": null,
+      "lastValidated": null,
+      "notes": "INTAKE 2026-05-09. Simple ASP.NET Core MVC app generating QR codes via QRCoder + System.Drawing.Bitmap. .NET Core 3.1 is EOL. Target: upgrade to .NET 8 + replace System.Drawing.Bitmap with cross-platform alternative (SkiaSharp or ImageSharp) + deploy to Azure App Service. Straightforward replatform.",
+      "treatmentPath": "S1->S2->S4->S5",
+      "factoryStatus": "in-progress"
+    },
+    {
+      "name": "nodejs-docs-samples",
+      "displayName": "Google Cloud Platform Node.js Samples",
+      "spokeRepo": "GoogleCloudPlatform/nodejs-docs-samples",
+      "stack": "Node.js / Google Cloud Platform (App Engine, Cloud SQL, Cloud Tasks, Cloud Run, Datastore, Healthcare, etc.)",
+      "treatment": "Retire",
+      "complexity": "LOW",
+      "stations": {
+        "S1": "pending",
+        "S2": "pending"
+      },
+      "currentSprint": null,
+      "azureUrl": null,
+      "lastValidated": null,
+      "notes": "INTAKE 2026-05-09. Official Google Cloud Platform Node.js sample collection -- App Engine, Cloud SQL, Cloud Tasks, Cloud Run, Datastore, Pub/Sub, etc. Wrong cloud provider. Not an Azure migration candidate. Retire from the factory. If Azure equivalents are needed, map GCP services to Azure and use as cross-cloud migration reference (App EngineΓåÆApp Service, Cloud RunΓåÆACA, DatastoreΓåÆCosmos DB, Pub/SubΓåÆService Bus).",
+      "treatmentPath": "S1->S2->Retire",
+      "factoryStatus": "in-progress"
+    },
+    {
+      "name": "metadata-extractor-dotnet",
+      "displayName": "MetadataExtractor -- .NET Image Metadata Library",
+      "spokeRepo": "drewnoakes/metadata-extractor-dotnet",
+      "stack": ".NET / C# / NuGet library (netstandard / net35 / net45 / portable)",
+      "treatment": "Reference",
+      "complexity": "LOW",
+      "stations": {
+        "S1": "pending",
+        "S2": "pending"
+      },
+      "currentSprint": null,
+      "azureUrl": null,
+      "lastValidated": null,
+      "notes": "INTAKE 2026-05-09. Open-source .NET library for reading image metadata (EXIF, IPTC, XMP, etc.) from JPEG, PNG, GIF, etc. Published as NuGet package. Not a web application -- no Azure deployment target. Reference pattern for image processing library integration in factory apps. No migration work required.",
+      "treatmentPath": "S1->S2->Reference",
+      "factoryStatus": "in-progress"
+    },
+    {
+      "name": "legacy-cycle-store-mvc",
+      "displayName": "Legacy Cycle Store -- ASP.NET MVC (AdventureWorks)",
+      "spokeRepo": "aws-samples/legacy-cycle-store-mvc-app",
+      "stack": "ASP.NET MVC / .NET Framework 4.x / Entity Framework 6 / SQL Server / AdventureWorks DB",
+      "treatment": "Replatform",
+      "complexity": "MEDIUM",
+      "stations": {
+        "S1": "pending",
+        "S2": "pending",
+        "S4": "pending",
+        "S5": "pending"
+      },
+      "currentSprint": null,
+      "azureUrl": null,
+      "lastValidated": null,
+      "notes": "INTAKE 2026-05-09. AWS sample demonstrating ASP.NET MVC + EF6 modernization to ASP.NET Core + EF Core. Originally AWS-targeted but pattern is cloud-agnostic. Factory path: upgrade to .NET 8 + EF Core + Azure App Service + Azure SQL. AdventureWorks DB already in SQL Server -- straightforward Azure SQL migration. Good teaching example for EF6ΓåÆEF Core migration patterns.",
+      "treatmentPath": "S1->S2->S4->S5",
+      "factoryStatus": "in-progress"
+    },
+    {
+      "name": "legacy-app-service",
+      "displayName": "Legacy ASP.NET Apps with Windows Auth ΓåÆ Azure App Service Easy Auth",
+      "spokeRepo": "mikelapierre/LegacyAppService",
+      "stack": "ASP.NET / .NET Framework / ASMX (SOAP) / WCF / Web API / Windows Authentication / Azure App Service Easy Auth",
+      "treatment": "Reference",
+      "complexity": "MEDIUM",
+      "stations": {
+        "S1": "pending",
+        "S2": "pending"
+      },
+      "currentSprint": null,
+      "azureUrl": null,
+      "lastValidated": null,
+      "notes": "INTAKE 2026-05-09. 5-project sample collection (EasyAuthSimulator, LegacyAPIApp, LegacyASMXApp, LegacyWCFApp, LegacyWebApp) demonstrating how legacy ASP.NET apps with Windows Auth can be moved to Azure App Service with minimal code changes using Easy Auth. Reference pattern for ASMX/WCF lift-and-shift auth scenarios. Accompanying blog post on Microsoft Premier Developer blog.",
+      "treatmentPath": "S1->S2->Reference",
+      "factoryStatus": "in-progress"
+    },
+    {
+      "name": "devenv-maturity-check",
+      "displayName": "Developer Environment Maturity Check (CMMI Assessment Tool)",
+      "spokeRepo": "microsoft/devenv-maturity-check",
+      "stack": "Vue.js / TypeScript (site/) / Azure Functions (JS, api/) / Terraform / Azure AD",
+      "treatment": "Replatform",
+      "complexity": "MEDIUM",
+      "stations": {
+        "S1": "pending",
+        "S2": "pending",
+        "S4": "pending",
+        "S5": "pending"
+      },
+      "currentSprint": null,
+      "azureUrl": null,
+      "lastValidated": null,
+      "notes": "INTAKE REASSESSED 2026-05-09. Full-stack app: Vue.js/TS frontend (site/), Azure Functions backend (api/ -- HTTP triggers: assessments-add, assessments-get, group-add/delete/get, schema-get), Terraform IaC. CMMI maturity model assessment tool -- captures rubric questions across categories. Has devcontainer. Similar scope to COECheck (NextRung). Target: wire CI/CD + Managed Identity for Functions + validate Terraform state backend. Local paths: F:\\Git\\microsoft\\devenv-maturity-check AND F:\\Git\\devenv-maturity-check (full clone).",
+      "treatmentPath": "S1->S2->S4->S5",
+      "factoryStatus": "in-progress"
+    },
+    {
+      "name": "magic-link-aad",
+      "displayName": "MagicLink with AAD -- Blazor WebAssembly + Passwordless Auth",
+      "spokeRepo": "local/MagicLinkWithAAD",
+      "stack": "Blazor WebAssembly / ASP.NET Core / C# / Azure Active Directory / Magic Link Auth",
+      "treatment": "Replatform",
+      "complexity": "MEDIUM",
+      "stations": {
+        "S1": "pending",
+        "S2": "pending",
+        "S4": "pending",
+        "S5": "pending"
+      },
+      "currentSprint": null,
+      "azureUrl": null,
+      "lastValidated": null,
+      "notes": "INTAKE 2026-05-09. Blazor WASM hosted app (Client/Server/Shared) implementing passwordless magic link authentication with Azure Active Directory. No git remote -- local folder only (F:\\Git\\MagicLinkWithAAD). No IaC or CI/CD. Target: add Azure App Service deployment + Managed Identity + Bicep IaC. Blockers: must establish git remote before CI/CD pipeline can be wired.",
+      "treatmentPath": "S1->S2->S4->S5",
+      "factoryStatus": "in-progress"
+    },
+    {
+      "name": "javaee-jboss-eap-migration",
+      "displayName": "JavaEE / JakartaEE to JBoss EAP Migration Workshop (ADS)",
+      "spokeRepo": "solliancenet/microsoft-JavaEE-JakartaEE-to-JBOSS-EAP-Migration-ADS",
+      "stack": "Java EE / Jakarta EE / JBoss EAP / Azure App Service for Java",
+      "treatment": "Reference",
+      "complexity": "LOW",
+      "stations": {
+        "S1": "pending",
+        "S2": "pending"
+      },
+      "currentSprint": null,
+      "azureUrl": null,
+      "lastValidated": null,
+      "notes": "INTAKE 2026-05-09. Microsoft ADS (Azure Developer Support) workshop IP for migrating JavaEE/JakartaEE applications to JBoss EAP on Azure. Content-only repo: decks (.pptx), labs, agenda guides, demo scripts. No deployable application. Reference pattern for Java EE ΓåÆ Azure App Service (JBoss) migration strategy and migration tooling (Azure Migrate + App Service Migration Assistant).",
+      "treatmentPath": "S1->S2->Reference",
+      "factoryStatus": "in-progress"
+    },
+    {
+      "name": "spring-cloud-aks-modernization",
+      "displayName": "Modernized Spring Cloud Microservices on AKS -- Workshop CIP",
+      "spokeRepo": "ADO:CEandS/Modernized Spring Cloud based microservice Application on AKS",
+      "stack": "Java / Spring Cloud / Spring Boot v1 & v2 / Azure Kubernetes Service (AKS) / Azure Pipelines",
+      "treatment": "Reference",
+      "complexity": "LOW",
+      "stations": {
+        "S1": "pending",
+        "S2": "pending"
+      },
+      "currentSprint": null,
+      "azureUrl": null,
+      "lastValidated": null,
+      "notes": "INTAKE 2026-05-09. CEandS community IP workshop -- demonstrates migrating Spring Cloud applications from on-premises/IaaS to AKS, including replacing Spring Cloud components (Eureka, Zuul, Spring Config) with Kubernetes-native equivalents. Content: PPTs, labs, demo files, delivery guide. Local path: F:\\Git\\Modernized%20Spring%20Cloud%20based%20microservice%20Application%20on%20AKS (URL-encoded). Reference material -- no migration candidate.",
+      "treatmentPath": "S1->S2->Reference",
+      "factoryStatus": "in-progress"
+    },
+    {
+      "name": "msdocs-python-flask-quickstart",
+      "displayName": "Python Flask Quickstart -- Azure App Service (azd)",
+      "spokeRepo": "ivegamsft/msdocs-python-flask-webapp-quickstart",
+      "stack": "Python / Flask / Azure App Service / azd (azure.yaml)",
+      "treatment": "Reference",
+      "complexity": "LOW",
+      "stations": {
+        "S1": "pending",
+        "S2": "pending"
+      },
+      "currentSprint": null,
+      "azureUrl": null,
+      "lastValidated": null,
+      "notes": "INTAKE 2026-05-09. Microsoft Docs quickstart sample for deploying Python Flask to Azure App Service. Has azure.yaml for azd deployment. Reference pattern for Python web app ΓåÆ Azure App Service via azd. Forked to ivegamsft for customization. Companion Django version also available.",
+      "treatmentPath": "S1->S2->Reference",
+      "factoryStatus": "in-progress"
+    },
+    {
+      "name": "ms-identity-nodejs",
+      "displayName": "Microsoft Identity Platform -- Node.js Samples",
+      "spokeRepo": "local/ms-identity-nodejs",
+      "stack": "Node.js / Express / Microsoft Identity Platform (MSAL) / web-app + web-api pattern",
+      "treatment": "Reference",
+      "complexity": "LOW",
+      "stations": {
+        "S1": "pending",
+        "S2": "pending"
+      },
+      "currentSprint": null,
+      "azureUrl": null,
+      "lastValidated": null,
+      "notes": "INTAKE 2026-05-09. Microsoft Identity Platform Node.js sample collection -- web-app and web-api subfolders demonstrating MSAL auth flows. No git remote -- local folder only (F:\\Git\\ms-identity-nodejs). Reference pattern for Node.js + MSAL integration. No migration work required.",
+      "treatmentPath": "S1->S2->Reference",
+      "factoryStatus": "in-progress"
+    },
+    {
+      "name": "mslearn-aks-ratings-api",
+      "displayName": "AKS Workshop Ratings API -- Microsoft Learn",
+      "spokeRepo": "MicrosoftDocs/mslearn-aks-workshop-ratings-api",
+      "stack": "Node.js / Express / MongoDB / Docker / Azure Kubernetes Service (AKS)",
+      "treatment": "Reference",
+      "complexity": "LOW",
+      "stations": {
+        "S1": "pending",
+        "S2": "pending"
+      },
+      "currentSprint": null,
+      "azureUrl": null,
+      "lastValidated": null,
+      "notes": "INTAKE 2026-05-09. Microsoft Learn AKS workshop component -- Node.js REST API connecting to MongoDB for storing ratings data. Has Dockerfile. Part of the full AKS workshop (front-end + API + MongoDB). Reference pattern for containerized Node.js API + MongoDB on AKS.",
+      "treatmentPath": "S1->S2->Reference",
+      "factoryStatus": "in-progress"
+    },
+    {
+      "name": "robot-time",
+      "displayName": "RobotTime -- Serverless Date/Time Logic App",
+      "spokeRepo": "ivegamsft/RobotTime",
+      "stack": "Azure Logic Apps / Terraform / PowerShell / HTTP API / Serverless",
+      "treatment": "Replatform",
+      "complexity": "LOW",
+      "stations": {
+        "S1": "pending",
+        "S2": "pending",
+        "S4": "pending",
+        "S5": "pending"
+      },
+      "currentSprint": null,
+      "azureUrl": null,
+      "lastValidated": null,
+      "notes": "INTAKE 2026-05-09. Serverless Logic App providing a date/time HTTP API with enterprise-grade security + Terraform IaC. Has iac/tf/ (Terraform), logicapps/ (workflow definitions), Tests/, tools/. Target: validate Managed Identity auth, add CI/CD workflow, ensure Terraform state in Azure Storage backend. Straightforward replatform -- already serverless, already IaC.",
+      "treatmentPath": "S1->S2->S4->S5",
+      "factoryStatus": "in-progress"
+    },
+    {
+      "name": "roi-devplatform",
+      "displayName": "ROI DevPlatform -- Developer Tooling Cost & IaC Platform",
+      "spokeRepo": "ivegamsft/roi-devplatform",
+      "stack": "Node.js / TypeScript / React (frontend) / Express (backend) / Terraform / Playwright / Docker Compose / Azure",
+      "treatment": "Replatform",
+      "complexity": "MEDIUM",
+      "stations": {
+        "S1": "pending",
+        "S2": "pending",
+        "S4": "pending",
+        "S5": "pending"
+      },
+      "currentSprint": null,
+      "azureUrl": null,
+      "lastValidated": null,
+      "notes": "INTAKE 2026-05-09. Multi-component platform for developer tooling cost analysis, IaC management, and identity-driven Azure app deployment. Has frontend/ (React/TS), src/ (Express backend), infra/ (Terraform), tests/ (Playwright e2e), specs/. Has docker-compose.yml. Has CHANGELOG.md and COMPLETION_REPORT.md. Target: containerize to ACA or App Service + wire Terraform CI/CD + Managed Identity.",
+      "treatmentPath": "S1->S2->S4->S5",
+      "factoryStatus": "in-progress"
+    },
+    {
+      "name": "doc-int-ingest",
+      "displayName": "Document Intelligence Ingestion -- Azure Functions",
+      "spokeRepo": "ivegamsft/doc-int-ingest",
+      "stack": ".NET / C# / Azure Functions / Azure Document Intelligence (Form Recognizer) / Docker",
+      "treatment": "Replatform",
+      "complexity": "LOW",
+      "stations": {
+        "S1": "pending",
+        "S2": "pending",
+        "S4": "pending",
+        "S5": "pending"
+      },
+      "currentSprint": null,
+      "azureUrl": null,
+      "lastValidated": null,
+      "notes": "INTAKE 2026-05-09. Azure Functions app for accelerating Document Intelligence (Form Recognizer) document ingestion. Has Dockerfile, host.json, .sln + .csproj. Has iac/ folder (IaC TBD). Target: wire CI/CD pipeline, validate Managed Identity for Document Intelligence access, push to Azure Functions Premium or Consumption plan.",
+      "treatmentPath": "S1->S2->S4->S5",
+      "factoryStatus": "in-progress"
+    },
+    {
+      "name": "collab-building-access",
+      "displayName": "Building Access -- Power Platform Collaborative App",
+      "spokeRepo": "local/csu-digiapps-p-collabapps-building_access",
+      "stack": "Power Apps / Power Automate / Microsoft Dataverse / Power BI / Microsoft Teams / Azure",
+      "treatment": "Reference",
+      "complexity": "LOW",
+      "stations": {
+        "S1": "pending",
+        "S2": "pending"
+      },
+      "currentSprint": null,
+      "azureUrl": null,
+      "lastValidated": null,
+      "notes": "INTAKE 2026-05-09. Power Platform collaborative app for building access management and COVID-era return-to-office planning. Two apps: employee workspace reservation (with self-attestation) + admin facility management. Has Power BI dashboard for occupancy analytics. Deep Teams integration. Dataverse data model. GitHub ALM. No git remote -- local folder only (F:\\Git\\csu-digiapps-p-collabapps-building_access). Power Platform solution -- not a traditional code migration candidate. Reference for Power Platform + Dataverse + Teams integration patterns.",
+      "treatmentPath": "S1->S2->Reference",
+      "factoryStatus": "in-progress"
+    },
+    {
+      "name": "collab-hr-onboarding",
+      "displayName": "HR Onboarding -- Power Platform Collaborative App",
+      "spokeRepo": "local/csu-digiapps-p-collabapps-onboarding",
+      "stack": "Power Apps / Power Automate / Microsoft Dataverse / Azure Active Directory / Microsoft Teams",
+      "treatment": "Reference",
+      "complexity": "LOW",
+      "stations": {
+        "S1": "pending",
+        "S2": "pending"
+      },
+      "currentSprint": null,
+      "azureUrl": null,
+      "lastValidated": null,
+      "notes": "INTAKE 2026-05-09. Power Platform HR onboarding app -- streamlines multi-department new employee onboarding. Admin can create Azure AD users directly from Power App (without portal access). Available in Microsoft Teams. Coordinates tasks across HR, IT, and management. No git remote -- local folder only (F:\\Git\\csu-digiapps-p-collabapps-onboarding). Reference for Power Apps + Azure AD Graph API + Teams integration.",
+      "treatmentPath": "S1->S2->Reference",
+      "factoryStatus": "in-progress"
+    },
+    {
+      "name": "collab-plant-management",
+      "displayName": "Plant Management -- Power Platform Collaborative App (Digital Control Tower)",
+      "spokeRepo": "local/csu-digiapps-p-collabapps-plant_management",
+      "stack": "Power Apps / Power BI / Azure DevOps / GitHub Actions / Microsoft Teams / Dataverse",
+      "treatment": "Reference",
+      "complexity": "LOW",
+      "stations": {
+        "S1": "pending",
+        "S2": "pending"
+      },
+      "currentSprint": null,
+      "azureUrl": null,
+      "lastValidated": null,
+      "notes": "INTAKE 2026-05-09. Manufacturing plant management collaborative app -- Digital Control Tower Dashboard for tracking plant engineers, machines, and production metrics. Has Power BI report (.pbix), Power App, architecture diagram (drawio), demo recording (.mp4). Uses Azure DevOps/GitHub for ALM. DevOps team integration with Teams notifications on PRs. No git remote -- local folder only (F:\\Git\\csu-digiapps-p-collabapps-plant_management). Reference for Power Platform DevOps ALM patterns.",
+      "treatmentPath": "S1->S2->Reference",
+      "factoryStatus": "in-progress"
+    },
+    {
+      "name": "ibuypets-v3",
+      "displayName": "IBuyPets v3 -- Classic .NET PetShop 4.0 (MSPetShop4)",
+      "spokeRepo": "IBuySpy-Dev/ibuypets-v3",
+      "stack": ".NET Framework / ASP.NET / C# / MSPetShop4 (Orders, Profile, Services, DBUtility) / SQL Server / Oracle / Terraform / Docker / GitHub Actions / Azure DevOps Pipelines",
+      "treatment": "Replatform",
+      "complexity": "HIGH",
+      "stations": {
+        "S1": "pending",
+        "S2": "pending",
+        "S3": "pending",
+        "S4": "pending",
+        "S5": "pending"
+      },
+      "currentSprint": null,
+      "azureUrl": null,
+      "lastValidated": null,
+      "notes": "INTAKE UPDATED 2026-05-09. Classic Microsoft ASP.NET PetShop 4.0 (MSPetShop4) reference application. Components: app/MSPetShop4Orders, MSPetShop4Profile, MSPetShop4Services, PetShopDB, DBUtility, common, Oracle, Web (app/PetShop.sln). Has app/Dockerfile. Has infra/ (Terraform IaC). Has api/ component. Has .github/workflows/ (build-app.yml, deploy-app.yml, deploy-db-with-sample-data.yml, deploy-infra-tf.yml, validate-infra-tf.yml) -- BUT uses client secret auth (AAD_PASSWORD) not OIDC -- SECURITY BLOCKER. Has .pipelines/ (Azure DevOps). Has .github/policies/branch-protection.yml. No git remote -- local folder only (F:\\Git\\IBuyPets-v3). HIGH complexity: dual-DB (SQL Server + Oracle), legacy DAL/BLL/MembershipProvider patterns. Blockers: (1) must establish git remote, (2) migrate AAD_PASSWORD to OIDC federated credentials, (3) Oracle ΓåÆ Azure SQL migration required. Related to petshop (IBuySpy) in factory.",
+      "treatmentPath": "S1->S2->S3->S4->S5",
+      "factoryStatus": "in-progress"
+    },
+    {
+      "name": "devcamp",
+      "displayName": "Azure DevCamp -- EDU Partner Training Workshop",
+      "spokeRepo": "AzureCAT-GSI/DevCamp",
+      "stack": "ASP.NET / Java / Node.js (multi-stack training labs)",
+      "treatment": "Reference",
+      "complexity": "LOW",
+      "stations": {
+        "S1": "done",
+        "S2": "done"
+      },
+      "currentSprint": "S2",
+      "azureUrl": null,
+      "lastValidated": "2026-05-09",
+      "notes": "INTAKE 2026-05-09. Azure EDU partner DevCamp world tour -- instructor-led workshop with hands-on labs covering Azure fundamentals, DevOps, Identity, IoT, Cognitive Services, ARM/IaC. Labs in dotnet/, java/, node/. 2018 vintage, no production deployment. Remote: AzureCAT-GSI/DevCamp. Reference treatment -- training material, no migration path.",
+      "treatmentPath": "Reference",
+      "factoryStatus": "in-progress"
+    },
+    {
+      "name": "azure-search-openai-demo",
+      "displayName": "Azure Search OpenAI Demo -- RAG Reference Implementation",
+      "spokeRepo": "Azure-Samples/azure-search-openai-demo",
+      "stack": "Python / TypeScript / React / Azure OpenAI / Azure Cognitive Search / Bicep / App Service",
+      "treatment": "Reference",
+      "complexity": "LOW",
+      "stations": {
+        "S1": "done",
+        "S2": "done"
+      },
+      "currentSprint": "S2",
+      "azureUrl": null,
+      "lastValidated": "2026-05-09",
+      "notes": "INTAKE 2026-05-09. Azure Samples reference -- ChatGPT + Enterprise data via RAG pattern. Azure OpenAI (gpt-35-turbo) + Cognitive Search. Cloud-native: azd-ready, Bicep IaC, Python backend + React/TS frontend, App Service. Remote: Azure-Samples/azure-search-openai-demo. Reference treatment -- already modern. Pattern study for AI-augmented migration tooling.",
+      "treatmentPath": "Reference",
+      "factoryStatus": "in-progress"
+    }
+  ]
+}

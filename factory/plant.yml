@@ -1,0 +1,75 @@
+# dAIsy Chain Plant Configuration
+# Master cell inventory and deployment status
+
+plant:
+  name: dAIsy Chain
+  environment: dev
+  region: eastus
+
+cells:
+  observability:
+    name: Observability
+    description: Shared Log Analytics, App Insights, monitoring
+    enabled: false  # Will enable after Phase 6 review
+    status: staged  # PR #438 open
+    path: infra/cells/observability
+    dependencies: []
+  
+  identity:
+    name: Identity & RBAC
+    description: Hub Key Vault, managed identities, RBAC role defs
+    enabled: false  # Canary phase
+    status: implementing
+    path: infra/cells/identity
+    dependencies: []
+  
+  network:
+    name: Network
+    description: Hub VNet, DNS zones, App Gateway, peerings
+    enabled: false  # After identity stable
+    status: planned
+    path: infra/cells/network
+    dependencies:
+      - identity
+  
+  data:
+    name: Data & Backup
+    description: Optional shared SQL pool, backup vault, DR
+    enabled: false
+    status: planned
+    path: infra/cells/data
+    dependencies:
+      - network
+  
+  compliance:
+    name: Compliance & Policy
+    description: Azure Policy, Defender, cost guardrails
+    enabled: false
+    status: planned
+    path: infra/cells/compliance
+    dependencies:
+      - identity
+      - network
+
+# Canary workcell ? first to consume new cells
+# NOTE: Replace <CANARY_WORKCELL> with the name of your first migration workcell
+canary:
+  workcell: <CANARY_WORKCELL>
+  status: pending  # Will activate when first cell is ready
+  description: >
+    [Your first app] migration workcell serves as canary for new cell patterns.
+    After 1 week of stable operation in dev, cells are promoted to prod.
+
+# Deployment schedule
+schedule:
+  identity: week-1
+  network: week-2
+  data: week-3
+  compliance: week-4
+
+# Promotion gates (before prod deployment)
+gates:
+  health-check: "All tests pass"
+  canary-duration: "1 week without incidents"
+  peer-review: "Architecture review approved"
+  cost-check: "Monthly cost < threshold"

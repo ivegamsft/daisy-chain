@@ -1,0 +1,122 @@
+name: Post-Deploy Verify
+
+on:
+  workflow_call:
+    inputs:
+      app_name:
+        description: App name (matches factory-state.json)
+        required: true
+        type: string
+      azure_url:
+        description: Deployed URL to health-check
+        required: true
+        type: string
+      station:
+        description: Station code (e.g. S4)
+        required: true
+        type: string
+      spoke_repo:
+        description: Spoke repo name without org (e.g. app-petshop-migration)
+        required: false
+        type: string
+        default: ''
+    secrets:
+      HUB_PAT:
+        description: PAT with contents+issues write on hub repo
+        required: false
+  workflow_dispatch:
+    inputs:
+      app_name:
+        required: true
+        type: string
+      azure_url:
+        required: true
+        type: string
+      station:
+        required: true
+        type: string
+      spoke_repo:
+        required: false
+        type: string
+        default: ''
+
+permissions:
+  contents: write
+  issues: write
+
+jobs:
+  verify:
+    name: Health Check + Screenshot
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Normalise URL
+        id: url
+        run: |
+          URL="${{ inputs.azure_url }}"
+          [[ "$URL" != http* ]] && URL="https://$URL"
+          echo "url=$URL" >> "$GITHUB_OUTPUT"
+
+      - name: HTTP health check
+        id: health
+        run: |
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+            --max-time 30 --retry 3 --retry-delay 10 \
+            "${{ steps.url.outputs.url }}" || echo "000")
+          echo "http_status=$STATUS" >> "$GITHUB_OUTPUT"
+          if [[ "$STATUS" =~ ^[23] ]]; then
+            echo "healthy=true"  >> "$GITHUB_OUTPUT"
+            echo "? HTTP $STATUS ? ${{ inputs.app_name }} ${{ inputs.station }}"
+          else
+            echo "healthy=false" >> "$GITHUB_OUTPUT"
+            echo "? HTTP $STATUS ? ${{ inputs.app_name }} ${{ inputs.station }}"
+          fi
+
+      - name: Screenshot (Playwright)
+        if: steps.health.outputs.healthy == 'true'
+        run: |
+          npm install -g @playwright/test 2>/dev/null | tail -1
+          npx playwright install --with-deps chromium 2>/dev/null | tail -3
+          npx playwright screenshot \
+            --browser chromium \
+            --full-page \
+            "${{ steps.url.outputs.url }}" \
+            screenshot.png \
+            && echo "?? Screenshot captured" \
+            || echo "? Screenshot failed (non-blocking)"
+
+      - name: Upload screenshot artifact
+        if: steps.health.outputs.healthy == 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: screenshot-${{ inputs.app_name }}-${{ inputs.station }}
+          path: screenshot.png
+          if-no-files-found: ignore
+          retention-days: 30
+
+      - name: Mark station complete
+        if: steps.health.outputs.healthy == 'true'
+        uses: ./.github/actions/station-complete
+        with:
+          app: ${{ inputs.app_name }}
+          station: ${{ inputs.station }}
+          azure_url: ${{ steps.url.outputs.url }}
+          hub_token: ${{ secrets.HUB_PAT || secrets.GITHUB_TOKEN }}
+
+      - name: Pull andon cord on failure
+        if: steps.health.outputs.healthy == 'false'
+        uses: ./.github/actions/pull-andon-cord
+        with:
+          app: ${{ inputs.app_name }}
+          station: ${{ inputs.station }}
+          reason: "Post-deploy health check returned HTTP ${{ steps.health.outputs.http_status }}"
+          run_url: "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          hub_token: ${{ secrets.HUB_PAT || secrets.GITHUB_TOKEN }}
+          spoke_repo: ${{ inputs.spoke_repo }}
+
+      - name: Fail job on unhealthy deploy
+        if: steps.health.outputs.healthy == 'false'
+        run: |
+          echo "::error::Health check failed for ${{ inputs.app_name }} ${{ inputs.station }} (HTTP ${{ steps.health.outputs.http_status }})"
+          exit 1

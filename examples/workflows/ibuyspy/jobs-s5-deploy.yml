@@ -1,0 +1,140 @@
+name: Jobs S5 ? Container Apps Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target environment'
+        required: true
+        type: choice
+        options: [dev, staging]
+        default: dev
+      image_tag:
+        description: 'Container image tag (default: git SHA)'
+        required: false
+        type: string
+
+concurrency:
+  group: deploy-jobs-${{ github.event.inputs.environment }}
+  cancel-in-progress: false
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  APP_NAME: jobs
+  RESOURCE_GROUP: rg-jobs-${{ github.event.inputs.environment }}
+  ACR_NAME: crjobs${{ github.event.inputs.environment }}
+  CONTAINER_APP_NAME: ca-jobs-${{ github.event.inputs.environment }}
+  CONTAINER_APP_ENV: cae-factory-${{ github.event.inputs.environment }}
+  SPOKE_REPO: IBuySpy-Dev/app-jobs-migration
+  IMAGE_TAG: ${{ github.event.inputs.image_tag || github.sha }}
+
+jobs:
+  validate-names:
+    uses: ./.github/workflows/validate-caf-naming.yml
+    with:
+      resource_group: rg-jobs-${{ github.event.inputs.environment }}
+
+  check-prerequisites:
+    name: Check prerequisites
+    needs: validate-names
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify SPOKE_PAT secret
+        run: |
+          if [ -z "${{ secrets.SPOKE_PAT }}" ]; then
+            echo "::error::SPOKE_PAT secret is not set. A GitHub PAT with 'workflow' scope on IBuySpy-Dev/app-jobs-migration is required."
+            echo "::error::See docs/factory-learnings/ for setup instructions."
+            exit 1
+          fi
+          echo "[OK] SPOKE_PAT is configured"
+      - name: Verify spoke build workflow exists
+        env:
+          GH_TOKEN: ${{ secrets.SPOKE_PAT }}
+        run: |
+          if ! gh api repos/${{ env.SPOKE_REPO }}/contents/.github/workflows/build-s5.yml >/dev/null 2>&1; then
+            echo "::error::build-s5.yml not found in ${{ env.SPOKE_REPO }}. The spoke repo must have a build-s5.yml workflow."
+            echo "::error::See docs/factory-learnings/webproj-format-restructuring.md -- Jobs uses VS2005 Web Site Project format."
+            echo "::error::Jobs S5 is blocked pending completion of the .NET 8 migration in ${{ env.SPOKE_REPO }}."
+            exit 1
+          fi
+          echo "[OK] build-s5.yml found in ${{ env.SPOKE_REPO }}"
+
+  build-and-push:
+    needs: check-prerequisites
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Azure Login (OIDC)
+        uses: azure/login@v3
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Trigger spoke build + push
+        env:
+          GH_TOKEN: ${{ secrets.SPOKE_PAT }}
+        run: |
+          gh workflow run build-s5.yml \
+            --repo ${{ env.SPOKE_REPO }} \
+            --field environment=${{ github.event.inputs.environment }} \
+            --field image_tag=${{ env.IMAGE_TAG }} \
+            --field acr_name=${{ env.ACR_NAME }}
+
+          sleep 30
+          RUN_ID=$(gh run list --repo ${{ env.SPOKE_REPO }} --workflow build-s5.yml --limit 1 --json databaseId --jq '.[0].databaseId')
+          gh run watch $RUN_ID --repo ${{ env.SPOKE_REPO }} --exit-status
+
+  deploy:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Azure Login (OIDC)
+        uses: azure/login@v3
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Deploy to Container Apps
+        run: |
+          IMAGE="${{ env.ACR_NAME }}.azurecr.io/${{ env.APP_NAME }}:${{ env.IMAGE_TAG }}"
+
+          az containerapp update \
+            --name ${{ env.CONTAINER_APP_NAME }} \
+            --resource-group ${{ env.RESOURCE_GROUP }} \
+            --image "$IMAGE" \
+            --set-env-vars "ASPNETCORE_ENVIRONMENT=${{ github.event.inputs.environment }}"
+
+      - name: Smoke test
+        run: |
+          APP_URL=$(az containerapp show \
+            --name ${{ env.CONTAINER_APP_NAME }} \
+            --resource-group ${{ env.RESOURCE_GROUP }} \
+            --query "properties.configuration.ingress.fqdn" -o tsv)
+
+          echo "Testing https://$APP_URL for Jobs UI (not just HTTP 200)"
+          for i in 1 2 3; do
+            BODY=$(curl -s --max-time 30 "https://$APP_URL/")
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 "https://$APP_URL/")
+            echo "Attempt $i: HTTP $STATUS"
+            if [[ "$STATUS" == "200" ]] && echo "$BODY" | grep -qi "job\|career\|position\|listing\|Jobs Portal"; then
+              echo "[OK] Smoke test passed -- Jobs UI returned HTTP $STATUS with expected content"
+              exit 0
+            elif [[ "$STATUS" == "200" ]] && echo "$BODY" | grep -qi "Azure Container Apps\|Welcome to nginx"; then
+              echo "::error::HTTP 200 but ACA/nginx default page -- app image not deployed correctly"
+              exit 1
+            fi
+            echo "Attempt $i: HTTP $STATUS -- retrying in 20s..."
+            sleep 20
+          done
+          echo "::error::Smoke test failed after 3 attempts -- expected Jobs UI content not found"
+          exit 1

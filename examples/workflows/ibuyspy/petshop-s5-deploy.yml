@@ -1,0 +1,201 @@
+name: PetShop S5 ? Container Apps Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target environment'
+        required: true
+        type: choice
+        options: [dev, staging]
+        default: dev
+      image_tag:
+        description: 'Container image tag (default: git SHA)'
+        required: false
+        type: string
+
+concurrency:
+  group: deploy-petshop-${{ github.event.inputs.environment }}
+  cancel-in-progress: false
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  APP_NAME: petshop
+  RESOURCE_GROUP: rg-petshop-${{ github.event.inputs.environment }}
+  ACR_NAME: crpetshopdev
+  CONTAINER_APP_NAME: ca-petshop-${{ github.event.inputs.environment }}
+  SPOKE_REPO: IBuySpy-Dev/app-petshop-migration
+  IMAGE_TAG: ${{ github.event.inputs.image_tag || github.sha }}
+  SQL_DB_NAME: PetShopUnified
+
+jobs:
+  validate-names:
+    uses: ./.github/workflows/validate-caf-naming.yml
+    with:
+      resource_group: rg-petshop-${{ github.event.inputs.environment }}
+
+  check-prerequisites:
+    name: Check prerequisites
+    needs: validate-names
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify SPOKE_PAT secret
+        run: |
+          if [ -z "${{ secrets.SPOKE_PAT }}" ]; then
+            echo "::error::SPOKE_PAT secret is not set. A GitHub PAT with 'workflow' scope on ${{ env.SPOKE_REPO }} is required."
+            exit 1
+          fi
+          echo "[OK] SPOKE_PAT is configured"
+
+  build-and-push:
+    needs: check-prerequisites
+    runs-on: ubuntu-latest
+    outputs:
+      sql_fqdn: ${{ steps.sql.outputs.sql_fqdn }}
+    steps:
+      - uses: actions/checkout@v6
+      - name: Azure Login (OIDC)
+        uses: azure/login@v3
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      - name: Resolve SQL server FQDN
+        id: sql
+        run: |
+          FQDN=$(az sql server list \
+            --resource-group ${{ env.RESOURCE_GROUP }} \
+            --query '[0].fullyQualifiedDomainName' -o tsv)
+          echo "sql_fqdn=$FQDN" >> "$GITHUB_OUTPUT"
+          echo "SQL server: $FQDN"
+      - name: Trigger spoke build + push
+        env:
+          GH_TOKEN: ${{ secrets.SPOKE_PAT }}
+        run: |
+          gh workflow run build-s5.yml \
+            --repo ${{ env.SPOKE_REPO }} \
+            --field environment=${{ github.event.inputs.environment }} \
+            --field image_tag=${{ env.IMAGE_TAG }}
+          sleep 30
+          RUN_ID=$(gh run list --repo ${{ env.SPOKE_REPO }} --workflow build-s5.yml --limit 1 --json databaseId --jq '.[0].databaseId')
+          gh run watch $RUN_ID --repo ${{ env.SPOKE_REPO }} --exit-status
+
+  deploy-and-grant:
+    # Basecoat ci-firewall: firewall add/grant/remove MUST be in same job ? runner IP changes between jobs
+    name: Deploy + Grant SQL + Smoke Test
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    outputs:
+      app_url: ${{ steps.get_url.outputs.app_url }}
+    steps:
+      - uses: actions/checkout@v6
+      - name: Azure Login (OIDC)
+        uses: azure/login@v3
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Add runner IP to SQL firewall
+        id: fw
+        run: |
+          RUNNER_IP=$(curl -s https://api.ipify.org)
+          SQL_SERVER=$(az sql server list --resource-group ${{ env.RESOURCE_GROUP }} --query '[0].name' -o tsv)
+          az sql server firewall-rule create \
+            --server "$SQL_SERVER" \
+            --resource-group ${{ env.RESOURCE_GROUP }} \
+            --name "gha-runner-${{ github.run_id }}" \
+            --start-ip-address "$RUNNER_IP" \
+            --end-ip-address "$RUNNER_IP" \
+            --output none
+          echo "sql_server=$SQL_SERVER" >> "$GITHUB_OUTPUT"
+          echo "runner_ip=$RUNNER_IP" >> "$GITHUB_OUTPUT"
+          echo "Added runner IP $RUNNER_IP to SQL firewall for server $SQL_SERVER"
+          sleep 20
+
+      - name: Deploy to Container Apps
+        run: |
+          IMAGE="${{ env.ACR_NAME }}.azurecr.io/${{ env.APP_NAME }}:${{ env.IMAGE_TAG }}"
+          SQL_CONN="Server=tcp:${{ needs.build-and-push.outputs.sql_fqdn }},1433;Initial Catalog=${{ env.SQL_DB_NAME }};Authentication=Active Directory Default;Connect Timeout=10;Encrypt=yes;TrustServerCertificate=no"
+          # Resolve user-assigned MI client ID ? required for DefaultAzureCredential to find the right identity
+          MI_CLIENT_ID=$(az identity show \
+            --resource-group ${{ env.RESOURCE_GROUP }} \
+            --name id-${{ env.APP_NAME }}-${{ github.event.inputs.environment }} \
+            --query 'clientId' -o tsv)
+          echo "MI client ID: $MI_CLIENT_ID"
+          az containerapp update \
+            --name ${{ env.CONTAINER_APP_NAME }} \
+            --resource-group ${{ env.RESOURCE_GROUP }} \
+            --image "$IMAGE" \
+            --set-env-vars \
+              "ASPNETCORE_ENVIRONMENT=${{ github.event.inputs.environment }}" \
+              "ConnectionStrings__PetShopDatabase=$SQL_CONN" \
+              "AZURE_CLIENT_ID=$MI_CLIENT_ID"
+
+      - name: Get app URL
+        id: get_url
+        run: |
+          FQDN=$(az containerapp show \
+            --name ${{ env.CONTAINER_APP_NAME }} \
+            --resource-group ${{ env.RESOURCE_GROUP }} \
+            --query 'properties.configuration.ingress.fqdn' -o tsv)
+          echo "app_url=https://$FQDN" >> "$GITHUB_OUTPUT"
+          echo "App URL: https://$FQDN"
+
+      - name: SQL roles note
+        run: |
+          echo "SQL role grant handled by ServiceLinker (Microsoft.ServiceLinker/linkers) in Bicep."
+          echo "Re-run petshop-s5-infra workflow if the managed identity needs roles re-granted."
+
+      - name: Remove runner IP from SQL firewall
+        if: always()
+        run: |
+          az sql server firewall-rule delete \
+            --server "${{ steps.fw.outputs.sql_server }}" \
+            --resource-group ${{ env.RESOURCE_GROUP }} \
+            --name "gha-runner-${{ github.run_id }}" \
+            --output none || true
+          echo "Removed runner IP ${{ steps.fw.outputs.runner_ip }} from SQL firewall"
+
+      - name: Wait for container restart with new config
+        run: sleep 30
+
+      - name: Smoke test ? verify health probe
+        run: |
+          APP_URL="${{ steps.get_url.outputs.app_url }}"
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 "$APP_URL/healthz/ready")
+          echo "Health probe: HTTP $STATUS"
+          [[ "$STATUS" == "200" ]] || { echo "::error::Health probe failed: $STATUS"; exit 1; }
+
+      - name: Smoke test ? verify home page returns real data
+        run: |
+          APP_URL="${{ steps.get_url.outputs.app_url }}"
+          echo "Testing $APP_URL/ for actual page content (not just HTTP 200)..."
+          for i in 1 2 3 4 5; do
+            BODY=$(curl -s --max-time 30 "$APP_URL/")
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 "$APP_URL/")
+            echo "Attempt $i: HTTP $STATUS"
+            if [[ "$STATUS" == "200" ]] && echo "$BODY" | grep -qi "fish\|bird\|dog\|cat\|petshop\|category\|product"; then
+              echo "? Smoke test PASSED ? home page returned $STATUS with expected DB-backed content"
+              exit 0
+            elif [[ "$STATUS" == "500" ]]; then
+              echo "Home page 500 ? DB connection may be warming up, retrying in 15s..."
+            else
+              echo "HTTP $STATUS ? retrying..."
+            fi
+            sleep 15
+          done
+          echo "::error::Smoke test FAILED ? home page did not return expected content after 5 attempts"
+          exit 1
+
+      - name: Deployment summary
+        if: always()
+        run: |
+          echo "=== PetShop S5 Deployment Summary ==="
+          echo "Container App : ${{ env.CONTAINER_APP_NAME }}"
+          echo "URL           : ${{ steps.get_url.outputs.app_url }}"
+          echo "Image tag     : ${{ env.IMAGE_TAG }}"
+          echo "SQL database  : ${{ env.SQL_DB_NAME }} @ ${{ needs.build-and-push.outputs.sql_fqdn }}"

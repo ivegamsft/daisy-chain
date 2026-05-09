@@ -1,0 +1,22 @@
+# dAIsy Chain Workcell Registry
+# Tracks all stamped Workcells and their sync status
+#
+# TEMPLATE FILE -- This file is auto-populated by `factory/stamp.ps1` when you register new apps.
+# After running stamp.ps1, this registry accumulates entries for each migration workcell.
+#
+# To use: 
+# 1. Run: .\factory\stamp.ps1 -App <AppName> -Treatment replatform
+# 2. This registry will auto-populate with the new workcell entry
+# 3. Commit the updated registry to track your stamped workcells
+#
+# Example entry (auto-generated):
+# workcell-myapp:
+#   app: myapp
+#   repo: app-myapp-migration
+#   treatment: replatform
+#   cells: [cell-stockroom]
+#   status: planning
+#   createdAt: 2026-01-01T00:00:00Z
+#
+# --- Enlisted Workcells ---
+# (Add entries here via stamp.ps1 -- do not edit manually)

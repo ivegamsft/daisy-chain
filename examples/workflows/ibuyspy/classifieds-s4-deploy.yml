@@ -1,0 +1,69 @@
+name: Classifieds S4 ? App Service Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target environment'
+        required: true
+        type: choice
+        options: [dev, prod]
+        default: dev
+      location:
+        description: 'Azure region'
+        required: false
+        default: canadacentral
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  SPOKE_REPO: IBuySpy-Dev/app-classifieds-migration
+
+jobs:
+  validate-names:
+    uses: ./.github/workflows/validate-caf-naming.yml
+    with:
+      resource_group: rg-classifieds-${{ github.event.inputs.environment }}
+
+  deploy:
+    name: Trigger spoke S4 deploy
+    needs: validate-names
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Trigger spoke deploy-app-service.yml
+        env:
+          GH_TOKEN: ${{ secrets.SPOKE_PAT }}
+        run: |
+          gh workflow run deploy-app-service.yml \
+            --repo ${{ env.SPOKE_REPO }} \
+            --field environment=${{ github.event.inputs.environment }} \
+            --field location=${{ github.event.inputs.location }}
+
+          sleep 30
+          RUN_ID=$(gh run list \
+            --repo ${{ env.SPOKE_REPO }} \
+            --workflow deploy-app-service.yml \
+            --limit 1 \
+            --json databaseId \
+            --jq '.[0].databaseId')
+          echo "Watching spoke run $RUN_ID..."
+          gh run watch "$RUN_ID" --repo ${{ env.SPOKE_REPO }} --exit-status
+
+      - name: Smoke test /listings
+        run: |
+          APP_URL="https://app-classifieds-${{ github.event.inputs.environment }}.azurewebsites.net"
+          echo "Testing $APP_URL/listings"
+          for i in 1 2 3 4 5; do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 "$APP_URL/listings")
+            if [[ "$STATUS" == "200" || "$STATUS" == "302" ]]; then
+              echo "? /listings returned HTTP $STATUS"
+              exit 0
+            fi
+            echo "Attempt $i: HTTP $STATUS ? retrying in 30s..."
+            sleep 30
+          done
+          echo "::error::Smoke test failed after 5 attempts ? check managed identity SQL roles"
+          exit 1

@@ -1,0 +1,84 @@
+name: PetShop ? S4 App Service Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Target environment
+        required: true
+        default: dev
+        type: choice
+        options: [dev, staging]
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  validate-names:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Validate CAF naming
+        shell: pwsh
+        run: |
+          $rg = "rg-petshop-${{ inputs.environment }}"
+          $app = "app-petshop-${{ inputs.environment }}"
+          $sb = "sb-petshop-${{ inputs.environment }}"
+          & ./scripts/validate-caf-naming.ps1 -ResourceGroup $rg -AppServiceName $app
+          if ("${{ inputs.environment }}" -eq "dev") {
+            Write-Host "? Service Bus namespace: $sb (pattern: sb-{workload}-{env})"
+          }
+
+  check-prerequisites:
+    needs: validate-names
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Verify S3 baseline validated
+        shell: pwsh
+        run: |
+          $state = Get-Content "docs/factory-state.json" | ConvertFrom-Json
+          $petshop = $state.apps | Where-Object { $_.name -eq "petshop" }
+          Write-Host "PetShop S3 status: $($petshop.stations.S3)"
+          if ($petshop.stations.S3 -ne "done") {
+            Write-Error "S3 VM rehost must be validated (HTTP 200) before S4 deploy. Current: $($petshop.stations.S3)"
+            exit 1
+          }
+          Write-Host "? S3 baseline confirmed"
+
+  deploy:
+    needs: check-prerequisites
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger spoke deploy
+        env:
+          GH_TOKEN: ${{ secrets.SPOKE_PAT }}
+        run: |
+          gh workflow run deploy-s4.yml \
+            --repo IBuySpy-Dev/app-petshop-migration \
+            --ref main \
+            --field environment=${{ inputs.environment }} \
+            --field location=canadacentral
+
+  smoke-test:
+    needs: deploy
+    runs-on: ubuntu-latest
+    steps:
+      - name: Smoke test ? PetShop home page
+        run: |
+          APP="app-petshop-${{ inputs.environment }}"
+          URL="https://${APP}.azurewebsites.net/default.aspx"
+          echo "Testing $URL"
+          for i in 1 2 3 4 5; do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 "$URL" || echo "000")
+            echo "Attempt $i: HTTP $STATUS"
+            # Accept any 2xx or 3xx ? 302 is normal redirect for ASP.NET apps
+            if [[ "$STATUS" =~ ^[23] ]]; then
+              echo "? PetShop S4 smoke test passed (HTTP $STATUS)"
+              exit 0
+            fi
+            [ $i -lt 5 ] && sleep 30
+          done
+          echo "?? Smoke test inconclusive ? check App Service logs"
+          exit 0

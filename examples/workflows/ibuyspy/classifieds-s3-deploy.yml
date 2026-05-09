@@ -1,0 +1,104 @@
+name: Classifieds S3 ? VM Rehost Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Target environment
+        required: true
+        type: choice
+        options: [dev]
+        default: dev
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  APP_NAME: classifieds
+  RESOURCE_GROUP: rg-classifieds-${{ github.event.inputs.environment }}
+  VM_NAME: vm-classifieds-${{ github.event.inputs.environment }}
+  STORAGE_ACCOUNT: stclassifieds${{ github.event.inputs.environment }}
+  SPOKE_REPO: IBuySpy-Dev/app-classifieds-migration
+
+jobs:
+  deploy-s3:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Azure Login (OIDC)
+        # L12: login must immediately precede az commands ? no long-running steps between login and first az call
+        uses: azure/login@v3
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Confirm Azure session active
+        run: az account show --output table
+
+      - name: Fix storage account firewall for GitHub Actions (L14)
+        # L14: stclassifiedsdev uses --default-action Deny and publicNetworkAccess Disabled.
+        # Both flags must be set (Enabled + Allow) for GitHub Actions runners to reach the data plane.
+        # This step runs before the spoke workflow so the spoke can also upload artifacts.
+        run: |
+          az storage account update \
+            --name "${{ env.STORAGE_ACCOUNT }}" \
+            --resource-group "${{ env.RESOURCE_GROUP }}" \
+            --default-action Allow \
+            --public-network-access Enabled
+          echo "? Storage firewall opened for data-plane access"
+
+      - name: Trigger spoke VM deploy
+        env:
+          GH_TOKEN: ${{ secrets.SPOKE_PAT }}
+        run: |
+          gh workflow run deploy-s3.yml \
+            --repo ${{ env.SPOKE_REPO }} \
+            --field environment=${{ github.event.inputs.environment }}
+
+          sleep 30
+          RUN_ID=$(gh run list \
+            --repo ${{ env.SPOKE_REPO }} \
+            --workflow deploy-s3.yml \
+            --limit 1 \
+            --json databaseId \
+            --jq '.[0].databaseId')
+          echo "Spoke run ID: $RUN_ID"
+          gh run watch "$RUN_ID" --repo ${{ env.SPOKE_REPO }} --exit-status
+
+      - name: Restore storage account firewall (L14 cleanup)
+        # Always restore to Deny after deploy to maintain security posture
+        if: always()
+        run: |
+          az storage account update \
+            --name "${{ env.STORAGE_ACCOUNT }}" \
+            --resource-group "${{ env.RESOURCE_GROUP }}" \
+            --default-action Deny \
+            --public-network-access Disabled || true
+          echo "? Storage firewall restored to Deny"
+
+  smoke-test:
+    needs: deploy-s3
+    runs-on: ubuntu-latest
+    steps:
+      - name: Smoke test VM endpoint
+        run: |
+          VM_IP="${{ vars.CLASSIFIEDS_VM_IP }}"
+          if [ -z "$VM_IP" ]; then
+            echo "::warning::CLASSIFIEDS_VM_IP variable not set ? skipping smoke test"
+            exit 0
+          fi
+          for i in 1 2 3; do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 "http://$VM_IP/")
+            if [[ "$STATUS" == "200" || "$STATUS" == "302" ]]; then
+              echo "? Smoke test passed (HTTP $STATUS)"
+              exit 0
+            fi
+            echo "Attempt $i: HTTP $STATUS ? retrying in 15s"
+            sleep 15
+          done
+          echo "::error::Smoke test failed after 3 attempts"
+          exit 1

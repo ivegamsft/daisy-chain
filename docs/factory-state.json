@@ -1,0 +1,107 @@
+{
+  "schemaVersion": "1.1",
+  "lastUpdated": "REPLACE-WITH-DATE",
+  "factory": "daisy-chain",
+  "org": "YOUR-ORG",
+  "apps": [
+    {
+      "name": "app-one",
+      "displayName": "App One",
+      "spokeRepo": "YOUR-ORG/app-one-migration",
+      "stack": "Your stack (e.g. ASP.NET 4.8 / SQL Server)",
+      "treatment": "Replatform",
+      "complexity": "LOW",
+      "stations": {
+        "S1": "done",
+        "S2": "in-progress",
+        "S3": "pending",
+        "S4": "pending",
+        "S5": "pending"
+      },
+      "currentSprint": "S1",
+      "azureUrl": "",
+      "lastValidated": "",
+      "notes": "Replace with your app-specific notes.",
+      "treatmentPath": "S1->S2->S3->S4->S5",
+      "factoryStatus": "in-progress",
+      "treatmentOptions": {
+        "recommended": "Replatform",
+        "can": ["Rehost", "Replatform"],
+        "shouldnt": ["Rewrite"],
+        "cannot": []
+      },
+      "inventory": {
+        "treatmentRationale": "Replace with rationale for chosen treatment.",
+        "architecture": "Replace with app architecture summary.",
+        "risks": ["Replace with identified risks"],
+        "dependencies": ["Replace with known dependencies"]
+      }
+    },
+    {
+      "name": "app-two",
+      "displayName": "App Two",
+      "spokeRepo": "YOUR-ORG/app-two-migration",
+      "stack": "Your stack",
+      "treatment": "Rehost",
+      "complexity": "LOW",
+      "stations": {
+        "S1": "pending",
+        "S2": "pending",
+        "S3": "pending",
+        "S4": "pending",
+        "S5": "pending"
+      },
+      "currentSprint": "",
+      "azureUrl": "",
+      "lastValidated": "",
+      "notes": "",
+      "treatmentPath": "S1->S2->S3->S4->S5",
+      "factoryStatus": "in-progress",
+      "treatmentOptions": {
+        "recommended": "Rehost",
+        "can": ["Rehost"],
+        "shouldnt": ["Rewrite"],
+        "cannot": []
+      },
+      "inventory": {
+        "treatmentRationale": "",
+        "architecture": "",
+        "risks": [],
+        "dependencies": []
+      }
+    },
+    {
+      "name": "app-retire-example",
+      "displayName": "App Retire Example",
+      "spokeRepo": "YOUR-ORG/app-retire-migration",
+      "stack": "Legacy (deprecated)",
+      "treatment": "Retire",
+      "complexity": "LOW",
+      "stations": {
+        "S1": "done",
+        "S2": "done",
+        "S3": "done",
+        "S4": "done",
+        "S5": "done"
+      },
+      "currentSprint": "",
+      "azureUrl": "",
+      "lastValidated": "",
+      "notes": "App retired -- no active users. Decommissioned.",
+      "treatmentPath": "S1->S2->S3->S4->S5",
+      "factoryStatus": "complete",
+      "treatmentOptions": {
+        "recommended": "Retire",
+        "can": ["Retire"],
+        "shouldnt": ["Rehost", "Replatform"],
+        "cannot": []
+      },
+      "inventory": {
+        "treatmentRationale": "No active users. Decommission and archive.",
+        "architecture": "Simple static site.",
+        "risks": [],
+        "dependencies": []
+      }
+    }
+  ]
+}
