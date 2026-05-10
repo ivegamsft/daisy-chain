@@ -2,7 +2,7 @@
 # sync.sh -- Pull the latest dAIsy Chain framework updates into a consumer repo
 #
 # Usage (from the root of your consumer repo):
-#   DAISY_REPO=https://github.com/IBuySpy-Shared/daisy-chain.git ./sync.sh
+#   DAISY_REPO=https://github.com/ivegamsft/daisy-chain.git ./sync.sh
 #   DAISY_REF=v1.0.0 ./sync.sh          # pin to a release tag
 #
 # What this syncs (overwrites):
@@ -21,7 +21,7 @@
 
 set -euo pipefail
 
-DAISY_REPO="${DAISY_REPO:-https://github.com/IBuySpy-Shared/daisy-chain.git}"
+DAISY_REPO="${DAISY_REPO:-https://github.com/ivegamsft/daisy-chain.git}"
 DAISY_REF="${DAISY_REF:-main}"
 TEMP_DIR="$(mktemp -d)"
 

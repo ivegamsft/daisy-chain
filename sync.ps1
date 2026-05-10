@@ -1,7 +1,7 @@
 # sync.ps1 -- Pull the latest dAIsy Chain framework updates into a consumer repo
 #
 # Usage (from the root of your consumer repo):
-#   $env:DAISY_REPO = 'https://github.com/IBuySpy-Shared/daisy-chain.git'; .\sync.ps1
+#   $env:DAISY_REPO = 'https://github.com/ivegamsft/daisy-chain.git'; .\sync.ps1
 #   $env:DAISY_REF  = 'v1.0.0'; .\sync.ps1     # pin to a release tag
 #
 # What this syncs (overwrites):
@@ -22,7 +22,7 @@ param()
 
 $ErrorActionPreference = 'Stop'
 
-$DaisyRepo = $env:DAISY_REPO ?? 'https://github.com/IBuySpy-Shared/daisy-chain.git'
+$DaisyRepo = $env:DAISY_REPO ?? 'https://github.com/ivegamsft/daisy-chain.git'
 $DaisyRef  = $env:DAISY_REF  ?? 'main'
 $TempDir   = Join-Path ([System.IO.Path]::GetTempPath()) "daisy-chain-sync-$([System.Guid]::NewGuid().ToString('N').Substring(0,8))"
 
